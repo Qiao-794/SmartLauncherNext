@@ -1,13 +1,23 @@
-﻿param(
+param(
     [int]$Cycles = 20,
-    [string]$TestDir = 'D:\Dev\Deepseek-00\.tmp\stabilitytest'
+    [string]$TestDir = 'D:\Dev\Deepseek-00\.tmp\stabilitytest',
+    [string]$SourceDir = 'D:\Dev\Deepseek-00\SmartLauncherNext'
 )
 
 $ErrorActionPreference = 'Stop'
 $exe = Join-Path $TestDir 'SmartLauncherNext.exe'
 $instance = '--instance=stability'
 $log = Join-Path $TestDir 'debug.log'
-$outCsv = Join-Path $TestDir 'stability-results.csv'
+$csv = Join-Path $TestDir 'stability-results.csv'
+
+if (!(Test-Path $TestDir)) { New-Item -ItemType Directory -Path $TestDir | Out-Null }
+Copy-Item (Join-Path $SourceDir 'out\SmartLauncherNext.exe') $exe -Force
+if (!(Test-Path (Join-Path $TestDir 'launcher.json'))) {
+    Copy-Item (Join-Path $SourceDir 'out\launcher.json') $TestDir -Force
+}
+if (!(Test-Path (Join-Path $TestDir 'Cache'))) {
+    Copy-Item (Join-Path $SourceDir 'out\Cache') $TestDir -Recurse -Force
+}
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
@@ -20,16 +30,28 @@ public class StabWin {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder sb, int n);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
-  public static IntPtr Find(uint pid, string title) {
+  public static IntPtr FindPanel(uint pid) {
     IntPtr found = IntPtr.Zero;
     EnumWindows(delegate(IntPtr h, IntPtr l) {
-      uint p;
-      GetWindowThreadProcessId(h, out p);
+      uint p; GetWindowThreadProcessId(h, out p);
       if (p == pid) {
-        StringBuilder t = new StringBuilder(256);
-        GetWindowText(h, t, 256);
-        if (t.ToString() == title) { found = h; return false; }
+        StringBuilder t = new StringBuilder(256); GetWindowText(h, t, 256);
+        if (t.ToString() == "SmartLauncherNextPanel") { found = h; return false; }
+      }
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
+  public static IntPtr FindSecondary(uint pid) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows(delegate(IntPtr h, IntPtr l) {
+      uint p; GetWindowThreadProcessId(h, out p);
+      if (p == pid && IsWindowVisible(h)) {
+        StringBuilder t = new StringBuilder(256); GetWindowText(h, t, 256);
+        string s = t.ToString();
+        if (s.StartsWith("SmartLauncher") && s != "SmartLauncherNextPanel") { found = h; return false; }
       }
       return true;
     }, IntPtr.Zero);
@@ -38,55 +60,74 @@ public class StabWin {
 }
 "@
 
-function Get-TestProcess {
+function Get-App {
     Get-Process -Name 'SmartLauncherNext' -ErrorAction SilentlyContinue |
         Where-Object { try { $_.Path -eq $exe } catch { $false } } |
         Select-Object -First 1
 }
 
-function Wait-TestProcess([int]$timeoutMs) {
+function Wait-App([int]$timeoutMs) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     while ($sw.ElapsedMilliseconds -lt $timeoutMs) {
-        $p = Get-TestProcess
+        $p = Get-App
         if ($p) { return $p }
         Start-Sleep -Milliseconds 25
     }
     return $null
 }
 
-function Wait-Window([int]$appPid, [string]$title, [int]$timeoutMs) {
+function Wait-Panel([int]$appPid, [int]$timeoutMs) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     while ($sw.ElapsedMilliseconds -lt $timeoutMs) {
-        $h = [StabWin]::Find([uint32]$appPid, $title)
+        $h = [StabWin]::FindPanel([uint32]$appPid)
         if ($h -ne [IntPtr]::Zero -and [StabWin]::IsWindowVisible($h)) { return $h }
         Start-Sleep -Milliseconds 25
     }
     return [IntPtr]::Zero
 }
-
-function Wait-Hidden([IntPtr]$h, [int]$timeoutMs) {
+function Wait-Window([IntPtr]$handle, [int]$timeoutMs) {
+    if ($handle -eq [IntPtr]::Zero) { return $false }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     while ($sw.ElapsedMilliseconds -lt $timeoutMs) {
-        if (-not [StabWin]::IsWindowVisible($h)) { return $true }
+        if ([StabWin]::IsWindowVisible($handle)) { return $true }
         Start-Sleep -Milliseconds 25
     }
     return $false
 }
 
+function Get-PrivateWSMB {
+    try {
+        $s = Get-Counter '\Process(SmartLauncherNext)\Working Set - Private' -ErrorAction Stop
+        $sum = 0.0
+        foreach ($sample in $s.CounterSamples) { $sum += [double]$sample.CookedValue }
+        return [math]::Round($sum / 1MB, 1)
+    }
+    catch {
+        return $null
+    }
+}
+
 function Get-Metrics($p, [int]$cpuMs = 1000) {
     try {
         $p.Refresh()
-        $ws = [math]::Round($p.WorkingSet64 / 1MB, 1)
-        $priv = [math]::Round($p.PrivateMemorySize64 / 1MB, 1)
+        $privateWS = Get-PrivateWSMB
+        $commit = [math]::Round($p.PrivateMemorySize64 / 1MB, 1)
+        $workingSet = [math]::Round($p.WorkingSet64 / 1MB, 1)
         $handles = $p.HandleCount
         $threads = $p.Threads.Count
         $t0 = $p.TotalProcessorTime
         Start-Sleep -Milliseconds $cpuMs
         $p.Refresh()
         $t1 = $p.TotalProcessorTime
-        $delta = ($t1 - $t0).TotalMilliseconds
-        $cpu = [math]::Round(($delta / $cpuMs) * 100 / [Environment]::ProcessorCount, 2)
-        return [pscustomobject]@{ WS = $ws; Private = $priv; Handles = $handles; Threads = $threads; Cpu = $cpu }
+        $cpu = [math]::Round((($t1 - $t0).TotalMilliseconds / $cpuMs) * 100 / [Environment]::ProcessorCount, 2)
+        return [pscustomobject]@{
+            PrivateWS = $privateWS
+            Commit = $commit
+            WorkingSet = $workingSet
+            Handles = $handles
+            Threads = $threads
+            Cpu = $cpu
+        }
     }
     catch {
         return $null
@@ -102,12 +143,12 @@ function Read-LogInfo {
     return @{ Hooks = $hooks; Errors = $errors }
 }
 
-# Make sure no previous instance (production or test) is holding hooks/windows.
 Get-Process -Name 'SmartLauncherNext' -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
-Remove-Item $outCsv -ErrorAction SilentlyContinue
+Remove-Item $csv -ErrorAction SilentlyContinue
 
 $rows = New-Object System.Collections.Generic.List[object]
+$failCount = 0
 
 for ($i = 1; $i -le $Cycles; $i++) {
     Get-Process -Name 'SmartLauncherNext' -ErrorAction SilentlyContinue |
@@ -125,17 +166,17 @@ for ($i = 1; $i -le $Cycles; $i++) {
     $appPid = 0
     $panelH = [IntPtr]::Zero
     $settingsH = [IntPtr]::Zero
-    $launchOk = $false
+    $escFailed = $false
     $settingsOk = $false
     $err = ''
 
     try {
         $sw = [Diagnostics.Stopwatch]::StartNew()
-        cmd.exe /c start "" "$exe" --show --pin $instance
-        $p = Wait-TestProcess 6000
+        cmd.exe /c start "" "$exe" --show --pin --light $instance
+        $p = Wait-App 6000
         if (-not $p) { throw 'process not started' }
         $appPid = $p.Id
-        $panelH = Wait-Window $appPid 'SmartLauncherNextPanel' 6000
+        $panelH = Wait-Panel $appPid 6000
         if ($panelH -eq [IntPtr]::Zero) { throw 'panel not visible' }
         $sw.Stop()
         $cold = $sw.ElapsedMilliseconds
@@ -145,76 +186,68 @@ for ($i = 1; $i -le $Cycles; $i++) {
         Start-Sleep -Milliseconds 800
         $shown = Get-Metrics $p 1000
 
-        [System.Windows.Forms.SendKeys]::SendWait('d')
-        $launchOk = Wait-Hidden $panelH 2500
-        if (-not $launchOk) {
-            [System.Windows.Forms.SendKeys]::SendWait('d')
-            $launchOk = Wait-Hidden $panelH 2000
-        }
-        Start-Sleep -Milliseconds 300
+        [StabWin]::SetForegroundWindow($panelH) | Out-Null
+        Start-Sleep -Milliseconds 250
+        [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+        $stillVisible = Wait-Window $panelH 3000
+        if ($stillVisible) { $escFailed = $true; throw 'panel did not hide on Esc' }
+
+        Start-Sleep -Milliseconds 16500
         $hidden = Get-Metrics $p 1000
 
-        cmd.exe /c start "" "$exe" --settings $instance
-        $settingsH = Wait-Window $appPid 'SmartLauncher 设置' 6000
-        if ($settingsH -eq [IntPtr]::Zero) { throw 'settings window not visible' }
+        cmd.exe /c start "" "$exe" --settings --light $instance
+        $sw2 = [Diagnostics.Stopwatch]::StartNew()
+        while ($sw2.ElapsedMilliseconds -lt 8000) {
+            $settingsH = [StabWin]::FindSecondary([uint32]$appPid)
+            if ($settingsH -ne [IntPtr]::Zero) { break }
+            Start-Sleep -Milliseconds 50
+        }
+        if ($settingsH -eq [IntPtr]::Zero) { throw 'settings window not found' }
         Start-Sleep -Milliseconds 600
         $settings = Get-Metrics $p 1000
+
         [StabWin]::PostMessage($settingsH, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
-        $closed = Wait-Hidden $settingsH 3000
-        if (-not $closed) { throw 'settings did not close' }
-        $settingsOk = $true
         Start-Sleep -Milliseconds 500
+        $settingsOk = $true
         $after = Get-Metrics $p 1000
     }
     catch {
         $err = $_.Exception.Message
     }
 
+    if ($err.Length -gt 0) { $failCount++ }
     $info = Read-LogInfo
-    $shownWS = if ($null -ne $shown) { $shown.WS } else { $null }
-    $shownPriv = if ($null -ne $shown) { $shown.Private } else { $null }
-    $shownCpu = if ($null -ne $shown) { $shown.Cpu } else { $null }
-    $shownHandles = if ($null -ne $shown) { $shown.Handles } else { $null }
-    $shownThreads = if ($null -ne $shown) { $shown.Threads } else { $null }
-    $hiddenWS = if ($null -ne $hidden) { $hidden.WS } else { $null }
-    $hiddenPriv = if ($null -ne $hidden) { $hidden.Private } else { $null }
-    $hiddenCpu = if ($null -ne $hidden) { $hidden.Cpu } else { $null }
-    $settingsWS = if ($null -ne $settings) { $settings.WS } else { $null }
-    $settingsPriv = if ($null -ne $settings) { $settings.Private } else { $null }
-    $settingsCpu = if ($null -ne $settings) { $settings.Cpu } else { $null }
-    $afterWS = if ($null -ne $after) { $after.WS } else { $null }
-    $afterPriv = if ($null -ne $after) { $after.Private } else { $null }
-    $afterCpu = if ($null -ne $after) { $after.Cpu } else { $null }
 
     $row = [pscustomobject]@{
         Cycle = $i
         ColdStartMs = $cold
         StartupCpuMs = $startupCpu
-        ShownWS = $shownWS
-        ShownPrivate = $shownPriv
-        ShownCpu = $shownCpu
-        ShownHandles = $shownHandles
-        ShownThreads = $shownThreads
-        HiddenWS = $hiddenWS
-        HiddenPrivate = $hiddenPriv
-        HiddenCpu = $hiddenCpu
-        SettingsWS = $settingsWS
-        SettingsPrivate = $settingsPriv
-        SettingsCpu = $settingsCpu
-        AfterSettingsWS = $afterWS
-        AfterSettingsPrivate = $afterPriv
-        AfterSettingsCpu = $afterCpu
+        ShownPrivateWS = if ($null -ne $shown) { $shown.PrivateWS } else { $null }
+        ShownCommit = if ($null -ne $shown) { $shown.Commit } else { $null }
+        ShownWorkingSet = if ($null -ne $shown) { $shown.WorkingSet } else { $null }
+        ShownCpu = if ($null -ne $shown) { $shown.Cpu } else { $null }
+        ShownHandles = if ($null -ne $shown) { $shown.Handles } else { $null }
+        ShownThreads = if ($null -ne $shown) { $shown.Threads } else { $null }
+        HiddenPrivateWS = if ($null -ne $hidden) { $hidden.PrivateWS } else { $null }
+        HiddenCommit = if ($null -ne $hidden) { $hidden.Commit } else { $null }
+        HiddenCpu = if ($null -ne $hidden) { $hidden.Cpu } else { $null }
+        SettingsPrivateWS = if ($null -ne $settings) { $settings.PrivateWS } else { $null }
+        SettingsCommit = if ($null -ne $settings) { $settings.Commit } else { $null }
+        SettingsCpu = if ($null -ne $settings) { $settings.Cpu } else { $null }
+        AfterSettingsPrivateWS = if ($null -ne $after) { $after.PrivateWS } else { $null }
+        AfterSettingsCommit = if ($null -ne $after) { $after.Commit } else { $null }
+        AfterSettingsCpu = if ($null -ne $after) { $after.Cpu } else { $null }
         Hooks = $info.Hooks
-        KeyLaunchOk = $launchOk
+        EscHideOk = (-not $escFailed)
         SettingsOk = $settingsOk
         Errors = $info.Errors
         Error = $err
     }
     $rows.Add($row)
-    $rows | Export-Csv -LiteralPath $outCsv -NoTypeInformation -Encoding UTF8
+    $rows | Export-Csv -LiteralPath $csv -NoTypeInformation -Encoding UTF8
 
-    Write-Host ("cycle {0}/{1}: cold={2}ms shown={3}MB/{4}% hidden={5}MB/{6}% settings={7}MB/{8}% launch={9} settingsOk={10} hooks={11} errs={12} {13}" -f `
-        $i, $Cycles, $cold, $row.ShownPrivate, $row.ShownCpu, $row.HiddenPrivate, $row.HiddenCpu, $row.SettingsPrivate, $row.SettingsCpu, $launchOk, $settingsOk, $row.Hooks, $row.Errors, $err)
+    Write-Host ("cycle {0}/{1}: cold={2}ms shown={3}MB commit={4}MB hidden={5}MB settings={6}MB after={7}MB cpu={8}/{9}/{10}% err={11}" -f `
+        $i, $Cycles, $cold, $row.ShownPrivateWS, $row.ShownCommit, $row.HiddenPrivateWS, $row.SettingsPrivateWS, $row.AfterSettingsPrivateWS, $row.ShownCpu, $row.HiddenCpu, $row.SettingsCpu, $err)
 
     if ($appPid -ne 0) {
         Stop-Process -Id $appPid -Force -ErrorAction SilentlyContinue
@@ -222,4 +255,17 @@ for ($i = 1; $i -le $Cycles; $i++) {
     Start-Sleep -Milliseconds 300
 }
 
-Write-Host "done: $outCsv"
+$data = Import-Csv -LiteralPath $csv
+$summaryColumns = @('ColdStartMs','StartupCpuMs','ShownPrivateWS','ShownCommit','ShownCpu','HiddenPrivateWS','HiddenCpu','SettingsPrivateWS','SettingsCpu','AfterSettingsPrivateWS','AfterSettingsCpu','ShownHandles','ShownThreads')
+Write-Host '--- summary ---'
+foreach ($col in $summaryColumns) {
+    $vals = @($data.$col | Where-Object { $_ -ne '' -and $null -ne $_ } | ForEach-Object { [double]$_ })
+    if ($vals.Count -eq 0) { continue }
+    $avg = [math]::Round(($vals | Measure-Object -Average).Average, 2)
+    $min = [math]::Round(($vals | Measure-Object -Minimum).Minimum, 2)
+    $max = [math]::Round(($vals | Measure-Object -Maximum).Maximum, 2)
+    Write-Host ("{0}: avg={1} min={2} max={3}" -f $col, $avg, $min, $max)
+}
+$errCount = ($data | Where-Object { $_.Error -ne '' -or $_.Errors -ne '0' }).Count
+Write-Host ("completed={0} failures={1} errorRows={2} csv={3}" -f $data.Count, $failCount, $errCount, $csv)
+if ($failCount -gt 0) { exit 1 }

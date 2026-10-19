@@ -34,7 +34,7 @@ namespace SmartLauncher
         private readonly DispatcherTimer _trimTimer;
         private int _selected = -1;
         private DateTime _shownAt;
-        private enum PanelState { Hidden, Showing, Visible, Hiding }
+        private enum PanelState { Hidden, Visible, Hiding }
         private PanelState _state = PanelState.Hidden;
 
         private bool IsHiding
@@ -241,7 +241,7 @@ namespace SmartLauncher
             BeginFocusGrace();
             Log.Write("ShowPanel before Show left=" + Left + " top=" + Top + " h=" + Height);
             Show();
-            SetState(PanelState.Showing);
+            SetState(PanelState.Visible);
             Log.Write("ShowPanel after Show wpfVisible=" + IsVisible);
             UpdateLayout();
             InstallHooks();
@@ -251,7 +251,6 @@ namespace SmartLauncher
             _status.Visibility = Visibility.Collapsed;
             _selected = -1;
             UpdateSelection();
-            AnimateIn();
 
             if (Activity != null) Activity(this, EventArgs.Empty);
         }
@@ -269,29 +268,6 @@ namespace SmartLauncher
             Keyboard.Focus(this);
         }
 
-        private void AnimateIn()
-        {
-            DoubleAnimation fade = new DoubleAnimation(1, TimeSpan.FromMilliseconds(150));
-            CubicEase ease = new CubicEase();
-            ease.EasingMode = EasingMode.EaseOut;
-            fade.EasingFunction = ease;
-            fade.Completed += delegate
-            {
-                if (_state == PanelState.Showing) SetState(PanelState.Visible);
-            };
-            _content.BeginAnimation(UIElement.OpacityProperty, fade);
-
-            TranslateTransform tt = _content.RenderTransform as TranslateTransform;
-            if (tt != null)
-            {
-                DoubleAnimation move = new DoubleAnimation(0, TimeSpan.FromMilliseconds(170));
-                CubicEase ease2 = new CubicEase();
-                ease2.EasingMode = EasingMode.EaseOut;
-                move.EasingFunction = ease2;
-                tt.BeginAnimation(TranslateTransform.YProperty, move);
-            }
-        }
-
         private void HidePanel(bool immediate)
         {
             if (!IsVisible || IsHiding) return;
@@ -302,30 +278,14 @@ namespace SmartLauncher
             _activationTimer.Stop();
             _autoHideTimer.Stop();
             SetState(PanelState.Hiding);
-            int gen = ++_hideGen;
+            _hideGen++;
             Log.Write("HidePanel immediate=" + immediate + " pinned=" + _pinned);
 
-            if (immediate)
-            {
-                Hide();
-                ResetVisuals();
-                SetState(PanelState.Hidden);
-                ScheduleTrim();
-                return;
-            }
-
-            DoubleAnimation fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(80));
-            fade.Completed += delegate
-            {
-                if (gen != _hideGen) return;
-                Hide();
-                ResetVisuals();
-                SetState(PanelState.Hidden);
-                ScheduleTrim();
-            };
-            _content.BeginAnimation(UIElement.OpacityProperty, fade);
+            Hide();
+            ResetVisuals();
+            SetState(PanelState.Hidden);
+            ScheduleTrim();
         }
-
         private void SetState(PanelState state)
         {
             if (_state == state) return;
