@@ -697,7 +697,7 @@ namespace SmartLauncher
             popup.PlacementTarget = this;
             popup.Placement = PlacementMode.MousePoint;
             popup.StaysOpen = false;
-            popup.AllowsTransparency = false;
+            popup.AllowsTransparency = true;
             popup.Opened += delegate { _suppressDeactivate = true; };
             popup.Closed += delegate
             {
@@ -712,7 +712,6 @@ namespace SmartLauncher
             box.CornerRadius = new CornerRadius(6);
             box.Padding = new Thickness(4);
             box.MinWidth = 140;
-            box.Effect = Ui.Shadow();
 
             StackPanel stack = new StackPanel();
             stack.Children.Add(MenuRow("设置", delegate

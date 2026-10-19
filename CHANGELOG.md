@@ -6,6 +6,7 @@
 - 面板可见性改为 Hidden/Showing/Visible/Hiding 状态机
 - SettingsWindow 布局拆到 partial 文件
 - 设置页左侧 ≡ 拖拽排序
+- 修复右键菜单四个黑角（Popup 改为透明）
 
 ## 1.1 - 2026-10-19
 
