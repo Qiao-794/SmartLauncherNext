@@ -11,6 +11,8 @@
 - 修复移除动画后面板内容空白（ShowPanel 残留 Opacity=0）
 - 移除面板 WindowChrome，改用 SetWindowRgn 圆角 + RedrawWindow/DwmFlush，修复黑色色块残留
 - 30 次显示/隐藏压力无黑块；面板不再有阴影
+- 外点关闭改为鼠标移出面板 500ms 自动关闭，修复面板未激活时外点不生效/黑块残留
+- 移除不可靠的全局鼠标钩子/点击轮询/鼠标捕获
 - 设置关闭后触发工作集压缩
 - 20 轮稳定性压测：20/20 通过，结果见 `tests/stability-report.md`
 

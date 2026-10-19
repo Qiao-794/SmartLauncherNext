@@ -52,6 +52,8 @@ namespace SmartLauncher
         private DateTime _activatedAt;
         private RowView _hoverRow;
         private readonly DispatcherTimer _hoverTimer;
+        private DateTime _outsideSince;
+        private bool _menuOpen;
         private DateTime _focusGraceUntil;
 
         public event EventHandler Activity;
@@ -71,7 +73,7 @@ namespace SmartLauncher
             ResizeMode = ResizeMode.NoResize;
             ShowInTaskbar = false;
             Topmost = true;
-            ShowActivated = false;
+            ShowActivated = true;
             AllowsTransparency = false;
             Background = Theme.PanelSolidBrush;
             Width = PanelWidth;
@@ -146,6 +148,7 @@ namespace SmartLauncher
             _hoverTimer = new DispatcherTimer(DispatcherPriority.Normal);
             _hoverTimer.Interval = TimeSpan.FromMilliseconds(35);
             _hoverTimer.Tick += delegate { UpdateHoverFromCursor(); };
+
 
             _focusTimer = new DispatcherTimer();
             _focusTimer.Interval = TimeSpan.FromMilliseconds(250);
@@ -533,11 +536,13 @@ namespace SmartLauncher
             if (!IsVisible) return;
 
             RowView target = null;
+            bool inside = false;
             Native.POINT sp;
             if (Native.GetCursorPos(out sp))
             {
                 Point p = PointFromScreen(new Point(sp.X, sp.Y));
-                if (p.X >= 0 && p.Y >= 0 && p.X < ActualWidth && p.Y < ActualHeight)
+                inside = p.X >= 0 && p.Y >= 0 && p.X < ActualWidth && p.Y < ActualHeight;
+                if (inside)
                 {
                     IInputElement hit = InputHitTest(p);
                     DependencyObject d = hit as DependencyObject;
@@ -554,6 +559,26 @@ namespace SmartLauncher
                 }
             }
             SetHover(target);
+
+            if (_menuOpen)
+            {
+                _outsideSince = DateTime.MinValue;
+                return;
+            }
+            if (inside)
+            {
+                _outsideSince = DateTime.MinValue;
+                return;
+            }
+            if (_outsideSince == DateTime.MinValue)
+            {
+                _outsideSince = DateTime.Now;
+            }
+            else if ((DateTime.Now - _outsideSince).TotalMilliseconds > 500)
+            {
+                _outsideSince = DateTime.MinValue;
+                HidePanel(false);
+            }
         }
         private void OnPanelMouseMove(object sender, MouseEventArgs e)
         {
@@ -647,6 +672,7 @@ namespace SmartLauncher
 
         private void ShowMenu()
         {
+            _menuOpen = true;
             Popup popup = new Popup();
             popup.PlacementTarget = this;
             popup.Placement = PlacementMode.MousePoint;

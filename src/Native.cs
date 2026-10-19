@@ -147,6 +147,12 @@ namespace SmartLauncher
         [DllImport("dwmapi.dll")]
         public static extern int DwmFlush();
 
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetCapture(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool ReleaseCapture();
+
         [DllImport("dwmapi.dll")]
         public static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS margins);
 
