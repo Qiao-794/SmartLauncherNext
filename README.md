@@ -23,7 +23,7 @@ Quicker 动作保持原样即可（主路径现在已经存在）：
 - `↑` `↓` 选择，`Enter` 启动
 - `Esc` 或点击面板外关闭
 - 右键：设置 / 退出
-- 面板 243×473，窗口 269×499（13px 阴影边距）；layered WPF 合成、实心面 + 1px 边框 + DropShadow 阴影；不截屏模糊，不使用 DWM/WindowChrome
+- 面板 243×473，窗口 269×499（13px 阴影边距）；layered WPF 合成、实心面 + 1px 边框 + 10px 圆角 + DropShadow 阴影；不截屏模糊，不使用 DWM/WindowChrome
 - 鼠标移出不会自动关闭；左键点击面板外关闭（Deactivated）
 - 跟随系统深浅色；面板为实心磨砂面，不再截屏/模糊
 

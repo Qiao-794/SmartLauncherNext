@@ -73,7 +73,7 @@ namespace SmartLauncher
 
             Border root = new Border();
             root.Background = Theme.WindowSolidBrush;
-            root.CornerRadius = new CornerRadius(8);
+            root.CornerRadius = new CornerRadius(10);
             Content = root;
 
             Grid grid = new Grid();
@@ -416,7 +416,7 @@ namespace SmartLauncher
             box.Background = Theme.MenuBgBrush;
             box.BorderBrush = Theme.CardSolidBorder;
             box.BorderThickness = new Thickness(1);
-            box.CornerRadius = new CornerRadius(6);
+            box.CornerRadius = new CornerRadius(8);
             box.Padding = new Thickness(4);
             box.MinWidth = 170;
             box.Effect = Ui.Shadow();

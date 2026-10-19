@@ -5,6 +5,7 @@
 - 面板壳退回 layered WPF 合成（实心面 + 阴影），修复 DWM 黑块/空白
 - 恢复左键外点关闭，鼠标移出不再自动关闭
 - 保留 v1.2 的设置页、测试、配置版本
+- 面板圆角 7→10px、菜单 6→8px，接近 Win11 应用圆角
 - 移除 overlay/auto-hide/WindowChrome/SetWindowRgn/Redraw 这一套
 
 ## 1.2 - 2026-10-19

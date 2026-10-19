@@ -90,7 +90,7 @@ namespace SmartLauncher
 
             Border shadowBack = new Border();
             shadowBack.Margin = new Thickness(ShadowMargin);
-            shadowBack.CornerRadius = new CornerRadius(7);
+            shadowBack.CornerRadius = new CornerRadius(10);
             shadowBack.Background = Theme.PanelSolidBrush;
             shadowBack.IsHitTestVisible = false;
             DropShadowEffect panelShadow = new DropShadowEffect();
@@ -103,7 +103,7 @@ namespace SmartLauncher
             root.Children.Add(shadowBack);
             _panel = new Border();
             _panel.Margin = new Thickness(ShadowMargin);
-            _panel.CornerRadius = new CornerRadius(7);
+            _panel.CornerRadius = new CornerRadius(10);
             _panel.BorderThickness = new Thickness(1);
             _panel.BorderBrush = Theme.PanelBorderBrush;
             _panel.Background = Theme.PanelSolidBrush;
@@ -118,7 +118,7 @@ namespace SmartLauncher
             scroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
             scroll.Focusable = false;
             scroll.Padding = new Thickness(0);
-            scroll.Background = Theme.PanelSolidBrush;
+            scroll.Background = Brushes.Transparent;
             _content.Children.Add(scroll);
 
             _list = new StackPanel();
@@ -687,7 +687,7 @@ namespace SmartLauncher
             box.Background = Theme.MenuBgBrush;
             box.BorderBrush = Theme.PanelBorderBrush;
             box.BorderThickness = new Thickness(1);
-            box.CornerRadius = new CornerRadius(6);
+            box.CornerRadius = new CornerRadius(8);
             box.Padding = new Thickness(4);
             box.MinWidth = 140;
 
