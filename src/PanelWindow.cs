@@ -34,7 +34,13 @@ namespace SmartLauncher
         private readonly DispatcherTimer _trimTimer;
         private int _selected = -1;
         private DateTime _shownAt;
-        private bool _hiding;
+        private enum PanelState { Hidden, Showing, Visible, Hiding }
+        private PanelState _state = PanelState.Hidden;
+
+        private bool IsHiding
+        {
+            get { return _state == PanelState.Hiding; }
+        }
         private bool _suppressDeactivate;
         private bool _settingsOpen;
         private int _hideGen;
@@ -45,6 +51,7 @@ namespace SmartLauncher
         private int _focusAttempts;
         private DateTime _activatedAt;
         private RowView _hoverRow;
+        private readonly DispatcherTimer _hoverTimer;
         private DateTime _focusGraceUntil;
 
         public event EventHandler Activity;
@@ -144,6 +151,10 @@ namespace SmartLauncher
                 if (!IsVisible) Native.TrimWorkingSet();
             };
 
+            _hoverTimer = new DispatcherTimer(DispatcherPriority.Normal);
+            _hoverTimer.Interval = TimeSpan.FromMilliseconds(35);
+            _hoverTimer.Tick += delegate { UpdateHoverFromCursor(); };
+
             _focusTimer = new DispatcherTimer();
             _focusTimer.Interval = TimeSpan.FromMilliseconds(250);
             _focusTimer.Tick += delegate { OnFocusRetry(); };
@@ -198,9 +209,9 @@ namespace SmartLauncher
         {
             if (_settingsOpen) return;
             _hideGen++;
-            if (_hiding)
+            if (IsHiding)
             {
-                _hiding = false;
+                SetState(PanelState.Visible);
                 _content.BeginAnimation(UIElement.OpacityProperty, null);
                 _content.Opacity = 1;
             }
@@ -209,6 +220,9 @@ namespace SmartLauncher
             {
                 _shownAt = DateTime.Now;
                 InstallHooks();
+                _hoverTimer.Stop();
+                _hoverTimer.Start();
+                SetState(PanelState.Visible);
                 if (!IsActive) ScheduleActivation();
                 return;
             }
@@ -227,9 +241,12 @@ namespace SmartLauncher
             BeginFocusGrace();
             Log.Write("ShowPanel before Show left=" + Left + " top=" + Top + " h=" + Height);
             Show();
+            SetState(PanelState.Showing);
             Log.Write("ShowPanel after Show wpfVisible=" + IsVisible);
             UpdateLayout();
             InstallHooks();
+            _hoverTimer.Stop();
+            _hoverTimer.Start();
             Topmost = true;
             _status.Visibility = Visibility.Collapsed;
             _selected = -1;
@@ -258,6 +275,10 @@ namespace SmartLauncher
             CubicEase ease = new CubicEase();
             ease.EasingMode = EasingMode.EaseOut;
             fade.EasingFunction = ease;
+            fade.Completed += delegate
+            {
+                if (_state == PanelState.Showing) SetState(PanelState.Visible);
+            };
             _content.BeginAnimation(UIElement.OpacityProperty, fade);
 
             TranslateTransform tt = _content.RenderTransform as TranslateTransform;
@@ -273,13 +294,14 @@ namespace SmartLauncher
 
         private void HidePanel(bool immediate)
         {
-            if (!IsVisible || _hiding) return;
+            if (!IsVisible || IsHiding) return;
             Hooks.Uninstall();
+            _hoverTimer.Stop();
             SetHover(null);
             _focusTimer.Stop();
             _activationTimer.Stop();
             _autoHideTimer.Stop();
-            _hiding = true;
+            SetState(PanelState.Hiding);
             int gen = ++_hideGen;
             Log.Write("HidePanel immediate=" + immediate + " pinned=" + _pinned);
 
@@ -287,7 +309,7 @@ namespace SmartLauncher
             {
                 Hide();
                 ResetVisuals();
-                _hiding = false;
+                SetState(PanelState.Hidden);
                 ScheduleTrim();
                 return;
             }
@@ -298,12 +320,18 @@ namespace SmartLauncher
                 if (gen != _hideGen) return;
                 Hide();
                 ResetVisuals();
-                _hiding = false;
+                SetState(PanelState.Hidden);
                 ScheduleTrim();
             };
             _content.BeginAnimation(UIElement.OpacityProperty, fade);
         }
 
+        private void SetState(PanelState state)
+        {
+            if (_state == state) return;
+            Log.Write("panel state " + _state + " -> " + state);
+            _state = state;
+        }
         private void ResetVisuals()
         {
             _content.BeginAnimation(UIElement.OpacityProperty, null);
@@ -546,6 +574,33 @@ namespace SmartLauncher
             Log.Write("hooks installed=" + ok);
         }
 
+        private void UpdateHoverFromCursor()
+        {
+            if (!IsVisible) return;
+
+            RowView target = null;
+            Native.POINT sp;
+            if (Native.GetCursorPos(out sp))
+            {
+                Point p = PointFromScreen(new Point(sp.X, sp.Y));
+                if (p.X >= 0 && p.Y >= 0 && p.X < ActualWidth && p.Y < ActualHeight)
+                {
+                    IInputElement hit = InputHitTest(p);
+                    DependencyObject d = hit as DependencyObject;
+                    while (d != null)
+                    {
+                        Border b = d as Border;
+                        if (b != null && b.Tag is RowView)
+                        {
+                            target = (RowView)b.Tag;
+                            break;
+                        }
+                        d = VisualTreeHelper.GetParent(d);
+                    }
+                }
+            }
+            SetHover(target);
+        }
         private void OnPanelMouseMove(object sender, MouseEventArgs e)
         {
             RowView target = null;
@@ -585,7 +640,7 @@ namespace SmartLauncher
         }
         private bool OnGlobalKey(int vk)
         {
-            if (!IsVisible || _hiding) return false;
+            if (!IsVisible || IsHiding) return false;
             if (Hooks.ModifierDown) return false;
 
             if (vk == 0x1B)
@@ -620,7 +675,7 @@ namespace SmartLauncher
 
         private void HandleGlobalToken(string token)
         {
-            if (!IsVisible || _hiding) return;
+            if (!IsVisible || IsHiding) return;
             for (int i = 0; i < _rows.Count; i++)
             {
                 if (string.Equals(_rows[i].Item.Key, token, StringComparison.OrdinalIgnoreCase))
@@ -772,6 +827,8 @@ namespace SmartLauncher
         protected override void OnClosed(EventArgs e)
         {
             Hooks.Uninstall();
+            SetState(PanelState.Hidden);
+            _hoverTimer.Stop();
             _statusTimer.Stop();
             _trimTimer.Stop();
             _focusTimer.Stop();

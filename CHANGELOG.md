@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2 - 2026-10-19
+
+- 悬停增加 35ms 光标兜底，修复蓝色高亮偶发卡住
+- 面板可见性改为 Hidden/Showing/Visible/Hiding 状态机
+- SettingsWindow 布局拆到 partial 文件
+- 设置页左侧 ≡ 拖拽排序
+
 ## 1.1 - 2026-10-19
 
 - 面板改为不透明实心面 + WindowChrome/DWM 圆角与阴影，移除分层截屏伪亚克力

@@ -94,6 +94,7 @@ try {
     if (-not $p) { Fail 'process did not start' }
     $panel = Wait-Window $p.Id 'SmartLauncherNextPanel' 6000
     if ($panel -eq [IntPtr]::Zero) { Fail 'panel not visible' }
+    Start-Sleep -Milliseconds 500
 
     $text = Get-Content $log -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
     if ($text -notmatch 'hooks installed=True') { Fail 'keyboard hook was not installed' }
