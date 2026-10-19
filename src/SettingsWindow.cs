@@ -43,7 +43,6 @@ namespace SmartLauncher
 
         public SettingsWindow(PanelWindow panel)
         {
-            Log.Write("Settings ctor start");
             _panel = panel;
             _working = ConfigStore.Clone(Program.Config);
             Theme.Load();
@@ -141,7 +140,6 @@ namespace SmartLauncher
             _idleBox.IsChecked = _working.IdleExitMinutes > 0;
             _dirty = false;
 
-            Log.Write("Settings ctor end");
             Closing += OnClosing;
             SourceInitialized += OnSourceInitialized;
             Activated += delegate { Topmost = true; };
@@ -786,7 +784,6 @@ namespace SmartLauncher
             Restripe();
             UpdateCount();
             _focusedEditor = ed;
-            Log.Write("drag reorder target=" + target);
         }
 
         private void BeginRowDrag(RowEditor ed, UIElement grip, MouseButtonEventArgs e)
@@ -801,7 +798,6 @@ namespace SmartLauncher
             _dragEditor = ed;
             _dragStart = e.GetPosition(_rowsPanel);
             _dragging = false;
-            Log.Write("drag begin " + ed.NameBox.Text + " y=" + _dragStart.Y);
             grip.CaptureMouse();
             e.Handled = true;
         }
@@ -827,7 +823,6 @@ namespace SmartLauncher
                 }
                 target = i;
             }
-            Log.Write("drag move y=" + p.Y + " target=" + target + " current=" + current);
             if (target != current) MoveEditorTo(ed, target);
             e.Handled = true;
         }

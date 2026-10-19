@@ -746,7 +746,6 @@ namespace SmartLauncher
 
         public void OpenSettings()
         {
-            Log.Write("OpenSettings enter open=" + _settingsOpen);
             if (_settingsOpen) return;
             _settingsOpen = true;
             _suppressDeactivate = true;
@@ -761,7 +760,6 @@ namespace SmartLauncher
                     if (Activity != null) Activity(this, EventArgs.Empty);
                 };
                 w.Show();
-                Log.Write("OpenSettings shown modeless");
             }
             catch (Exception ex)
             {
