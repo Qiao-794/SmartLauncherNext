@@ -9,6 +9,8 @@
 - 修复右键菜单四个黑角（Popup 改为透明）
 - 面板显示/隐藏改为即时，去掉可能卡住的渲染动画
 - 修复移除动画后面板内容空白（ShowPanel 残留 Opacity=0）
+- 移除面板 WindowChrome，改用 SetWindowRgn 圆角 + RedrawWindow/DwmFlush，修复黑色色块残留
+- 30 次显示/隐藏压力无黑块；面板不再有阴影
 - 设置关闭后触发工作集压缩
 - 20 轮稳定性压测：20/20 通过，结果见 `tests/stability-report.md`
 

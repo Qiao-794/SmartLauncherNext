@@ -84,14 +84,6 @@ namespace SmartLauncher
             FontFamily = Theme.UiFont;
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
 
-            WindowChrome chrome = new WindowChrome();
-            chrome.CaptionHeight = 0;
-            chrome.ResizeBorderThickness = new Thickness(0);
-            chrome.GlassFrameThickness = new Thickness(0);
-            chrome.CornerRadius = new CornerRadius(7);
-            chrome.UseAeroCaptionButtons = false;
-            WindowChrome.SetWindowChrome(this, chrome);
-
             Grid root = new Grid();
             Content = root;
 
@@ -189,6 +181,7 @@ namespace SmartLauncher
             MouseRightButtonUp += OnRightClick;
             PreviewMouseMove += OnPanelMouseMove;
             MouseLeave += OnPanelMouseLeave;
+            SizeChanged += delegate { ApplyWindowRegion(); };
 
             new WindowInteropHelper(this).EnsureHandle();
             Log.Write("Panel ctor done");
@@ -282,6 +275,7 @@ namespace SmartLauncher
             Log.Write("HidePanel immediate=" + immediate + " pinned=" + _pinned);
 
             Hide();
+            Native.DwmFlush();
             ResetVisuals();
             SetState(PanelState.Hidden);
             ScheduleTrim();
@@ -751,6 +745,28 @@ namespace SmartLauncher
             Native.DwmSetWindowAttribute(hwnd, 34, ref none, 4);
         }
 
+        private void ApplyWindowRegion()
+        {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            double scale = 1.0;
+            uint dpi = Native.GetDpiForWindow(hwnd);
+            if (dpi > 0) scale = dpi / 96.0;
+            int w = (int)Math.Round(ActualWidth * scale);
+            int h = (int)Math.Round(ActualHeight * scale);
+            if (w <= 0 || h <= 0) return;
+            int r = (int)Math.Round(7 * scale);
+            IntPtr region = Native.CreateRoundRectRgn(0, 0, w + 1, h + 1, r * 2, r * 2);
+            Native.SetWindowRgn(hwnd, region, true);
+        }
+
+        private void RedrawPanel()
+        {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            Native.RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero, 0x0001 | 0x0004 | 0x0080 | 0x0100 | 0x0400);
+            Native.DwmFlush();
+        }
         private void OnSystemThemeChanged()
         {
             if (!Theme.Load()) return;

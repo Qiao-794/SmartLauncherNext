@@ -135,6 +135,18 @@ namespace SmartLauncher
         [DllImport("dwmapi.dll")]
         public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
+
+        [DllImport("user32.dll")]
+        public static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, bool redraw);
+
+        [DllImport("user32.dll")]
+        public static extern bool RedrawWindow(IntPtr hwnd, IntPtr updateRect, IntPtr updateRgn, uint flags);
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmFlush();
+
         [DllImport("dwmapi.dll")]
         public static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS margins);
 
