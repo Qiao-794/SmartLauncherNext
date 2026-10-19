@@ -19,6 +19,7 @@ if (!(Test-Path (Join-Path $TestDir 'Cache'))) {
 Remove-Item $log -ErrorAction SilentlyContinue
 
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -31,6 +32,8 @@ public class SmokeWin {
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; }
   public static IntPtr Find(uint pid, string title) {
     IntPtr found = IntPtr.Zero;
     EnumWindows(delegate(IntPtr h, IntPtr l) {
@@ -95,6 +98,28 @@ try {
     $panel = Wait-Window $p.Id 'SmartLauncherNextPanel' 6000
     if ($panel -eq [IntPtr]::Zero) { Fail 'panel not visible' }
     Start-Sleep -Milliseconds 500
+
+    $rect = New-Object SmokeWin+RECT
+    [SmokeWin]::GetWindowRect($panel, [ref]$rect) | Out-Null
+    $pw = $rect.R - $rect.L
+    $ph = $rect.B - $rect.T
+    $blank = $true
+    if ($pw -gt 100 -and $ph -gt 100) {
+        $bmp = New-Object System.Drawing.Bitmap($pw, $ph)
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.CopyFromScreen($rect.L, $rect.T, 0, 0, $bmp.Size)
+        $dark = 0
+        for ($y = 0; $y -lt $ph; $y += 2) {
+            for ($x = 0; $x -lt $pw; $x += 2) {
+                $c = $bmp.GetPixel($x, $y)
+                if ($c.R -lt 120 -or $c.G -lt 120 -or $c.B -lt 120) { $dark++ }
+            }
+        }
+        $g.Dispose()
+        $bmp.Dispose()
+        if ($dark -ge 20) { $blank = $false }
+    }
+    if ($blank) { Fail 'panel content appears blank' }
 
     $text = Get-Content $log -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
     if ($text -notmatch 'hooks installed=True') { Fail 'keyboard hook was not installed' }

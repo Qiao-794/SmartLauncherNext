@@ -20,6 +20,7 @@ if (!(Test-Path (Join-Path $TestDir 'Cache'))) {
 }
 
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -32,6 +33,8 @@ public class StabWin {
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; }
   public static IntPtr FindPanel(uint pid) {
     IntPtr found = IntPtr.Zero;
     EnumWindows(delegate(IntPtr h, IntPtr l) {
@@ -60,6 +63,26 @@ public class StabWin {
 }
 "@
 
+function Test-PanelContent([IntPtr]$handle) {
+    $r = New-Object StabWin+RECT
+    [StabWin]::GetWindowRect($handle, [ref]$r) | Out-Null
+    $w = $r.R - $r.L
+    $h = $r.B - $r.T
+    if ($w -lt 100 -or $h -lt 100) { return $false }
+    $bmp = New-Object System.Drawing.Bitmap($w, $h)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+    $dark = 0
+    for ($y = 0; $y -lt $h; $y += 2) {
+        for ($x = 0; $x -lt $w; $x += 2) {
+            $c = $bmp.GetPixel($x, $y)
+            if ($c.R -lt 120 -or $c.G -lt 120 -or $c.B -lt 120) { $dark++ }
+        }
+    }
+    $g.Dispose()
+    $bmp.Dispose()
+    return ($dark -ge 20)
+}
 function Get-App {
     Get-Process -Name 'SmartLauncherNext' -ErrorAction SilentlyContinue |
         Where-Object { try { $_.Path -eq $exe } catch { $false } } |
@@ -184,6 +207,7 @@ for ($i = 1; $i -le $Cycles; $i++) {
         $startupCpu = [math]::Round($p.TotalProcessorTime.TotalMilliseconds, 0)
 
         Start-Sleep -Milliseconds 800
+        if (-not (Test-PanelContent $panelH)) { throw 'panel content blank' }
         $shown = Get-Metrics $p 1000
 
         [StabWin]::SetForegroundWindow($panelH) | Out-Null

@@ -234,8 +234,8 @@ namespace SmartLauncher
             _panel.Background = Theme.PanelSolidBrush;
             _panel.BorderBrush = Theme.PanelBorderBrush;
             Background = Theme.PanelSolidBrush;
-            _content.Opacity = 0;
-            _content.RenderTransform = new TranslateTransform(0, 6);
+            _content.Opacity = 1;
+            _content.RenderTransform = new TranslateTransform(0, 0);
             PositionNearCursor();
             _shownAt = DateTime.Now;
             BeginFocusGrace();
