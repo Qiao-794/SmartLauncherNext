@@ -70,7 +70,7 @@ namespace SmartLauncher
                 contentHeight += 45;
             }
 
-            Height = Math.Min(contentHeight, 720);
+            Height = Math.Min(contentHeight, 720) + ShadowMargin * 2;
             UpdateSelection();
         }
 

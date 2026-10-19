@@ -20,6 +20,7 @@ namespace SmartLauncher
 {
     public partial class PanelWindow : Window
     {
+        private const double ShadowMargin = 13;
         private const double PanelWidth = 243;
 
         private AppConfig _config;
@@ -52,8 +53,6 @@ namespace SmartLauncher
         private DateTime _activatedAt;
         private RowView _hoverRow;
         private readonly DispatcherTimer _hoverTimer;
-        private DateTime _outsideSince;
-        private bool _menuOpen;
         private DateTime _focusGraceUntil;
 
         public event EventHandler Activity;
@@ -73,11 +72,11 @@ namespace SmartLauncher
             ResizeMode = ResizeMode.NoResize;
             ShowInTaskbar = false;
             Topmost = true;
-            ShowActivated = true;
-            AllowsTransparency = false;
-            Background = Theme.PanelSolidBrush;
-            Width = PanelWidth;
-            Height = 473;
+            ShowActivated = false;
+            AllowsTransparency = true;
+            Background = Brushes.Transparent;
+            Width = PanelWidth + ShadowMargin * 2;
+            Height = 473 + ShadowMargin * 2;
             SizeToContent = SizeToContent.Manual;
             WindowStartupLocation = WindowStartupLocation.Manual;
             Title = "SmartLauncherNextPanel";
@@ -89,8 +88,21 @@ namespace SmartLauncher
             Grid root = new Grid();
             Content = root;
 
+            Border shadowBack = new Border();
+            shadowBack.Margin = new Thickness(ShadowMargin);
+            shadowBack.CornerRadius = new CornerRadius(7);
+            shadowBack.Background = Theme.PanelSolidBrush;
+            shadowBack.IsHitTestVisible = false;
+            DropShadowEffect panelShadow = new DropShadowEffect();
+            panelShadow.BlurRadius = 11;
+            panelShadow.ShadowDepth = 2;
+            panelShadow.Direction = 270;
+            panelShadow.Opacity = 0.26;
+            panelShadow.Color = Colors.Black;
+            shadowBack.Effect = panelShadow;
+            root.Children.Add(shadowBack);
             _panel = new Border();
-            _panel.Margin = new Thickness(0);
+            _panel.Margin = new Thickness(ShadowMargin);
             _panel.CornerRadius = new CornerRadius(7);
             _panel.BorderThickness = new Thickness(1);
             _panel.BorderBrush = Theme.PanelBorderBrush;
@@ -184,7 +196,6 @@ namespace SmartLauncher
             MouseRightButtonUp += OnRightClick;
             PreviewMouseMove += OnPanelMouseMove;
             MouseLeave += OnPanelMouseLeave;
-            SizeChanged += delegate { ApplyWindowRegion(); };
 
             new WindowInteropHelper(this).EnsureHandle();
             Log.Write("Panel ctor done");
@@ -229,7 +240,7 @@ namespace SmartLauncher
             }
             _panel.Background = Theme.PanelSolidBrush;
             _panel.BorderBrush = Theme.PanelBorderBrush;
-            Background = Theme.PanelSolidBrush;
+            Background = Brushes.Transparent;
             _content.Opacity = 1;
             _content.RenderTransform = new TranslateTransform(0, 0);
             PositionNearCursor();
@@ -317,7 +328,7 @@ namespace SmartLauncher
             }
 
             double contentW = PanelWidth;
-            double contentH = Height;
+            double contentH = Height - ShadowMargin * 2;
             if (contentH <= 0) contentH = 473;
 
             double wpx = contentW * scale;
@@ -330,8 +341,8 @@ namespace SmartLauncher
             if (y + hpx > work.Bottom - 8) y = pt.Y - hpx - 16 * scale;
             if (y < work.Top + 8) y = work.Top + 8;
 
-            Left = x / scale;
-            Top = y / scale;
+            Left = x / scale - ShadowMargin;
+            Top = y / scale - ShadowMargin;
         }
 
         private void Launch(RowView row)
@@ -514,6 +525,13 @@ namespace SmartLauncher
         {
             Log.Write("Deactivated pinned=" + _pinned + " elapsed=" + (DateTime.Now - _shownAt).TotalMilliseconds + " everActive=" + _everActive);
             if (_pinned || _suppressDeactivate || _settingsOpen) return;
+            IntPtr fg = Native.GetForegroundWindow();
+            if (fg != IntPtr.Zero)
+            {
+                uint fgPid;
+                Native.GetWindowThreadProcessId(fg, out fgPid);
+                if (fgPid == (uint)System.Diagnostics.Process.GetCurrentProcess().Id) return;
+            }
             if (_config != null && !_config.HideWhenInactive) return;
             if ((DateTime.Now - _shownAt).TotalMilliseconds < 400) return;
             if (!_everActive) return;
@@ -559,27 +577,8 @@ namespace SmartLauncher
                 }
             }
             SetHover(target);
-
-            if (_menuOpen)
-            {
-                _outsideSince = DateTime.MinValue;
-                return;
-            }
-            if (inside)
-            {
-                _outsideSince = DateTime.MinValue;
-                return;
-            }
-            if (_outsideSince == DateTime.MinValue)
-            {
-                _outsideSince = DateTime.Now;
-            }
-            else if ((DateTime.Now - _outsideSince).TotalMilliseconds > 500)
-            {
-                _outsideSince = DateTime.MinValue;
-                HidePanel(false);
-            }
         }
+
         private void OnPanelMouseMove(object sender, MouseEventArgs e)
         {
             RowView target = null;
@@ -672,7 +671,6 @@ namespace SmartLauncher
 
         private void ShowMenu()
         {
-            _menuOpen = true;
             Popup popup = new Popup();
             popup.PlacementTarget = this;
             popup.Placement = PlacementMode.MousePoint;
@@ -756,50 +754,14 @@ namespace SmartLauncher
             {
                 source.AddHook(WndProc);
             }
-            ApplyNativeFrame();
         }
 
-        private void ApplyNativeFrame()
-        {
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero) return;
-            int dark = Theme.IsDark ? 1 : 0;
-            Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, 4);
-            int corner = Native.DWMWCP_ROUND;
-            Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, 4);
-            int none = unchecked((int)0xFFFFFFFE);
-            Native.DwmSetWindowAttribute(hwnd, 34, ref none, 4);
-        }
-
-        private void ApplyWindowRegion()
-        {
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero) return;
-            double scale = 1.0;
-            uint dpi = Native.GetDpiForWindow(hwnd);
-            if (dpi > 0) scale = dpi / 96.0;
-            int w = (int)Math.Round(ActualWidth * scale);
-            int h = (int)Math.Round(ActualHeight * scale);
-            if (w <= 0 || h <= 0) return;
-            int r = (int)Math.Round(7 * scale);
-            IntPtr region = Native.CreateRoundRectRgn(0, 0, w + 1, h + 1, r * 2, r * 2);
-            Native.SetWindowRgn(hwnd, region, true);
-        }
-
-        private void RedrawPanel()
-        {
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero) return;
-            Native.RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero, 0x0001 | 0x0004 | 0x0080 | 0x0100 | 0x0400);
-            Native.DwmFlush();
-        }
         private void OnSystemThemeChanged()
         {
             if (!Theme.Load()) return;
-            Background = Theme.PanelSolidBrush;
+            Background = Brushes.Transparent;
             _panel.Background = Theme.PanelSolidBrush;
             _panel.BorderBrush = Theme.PanelBorderBrush;
-            ApplyNativeFrame();
             BuildRows();
             if (IsVisible)
             {

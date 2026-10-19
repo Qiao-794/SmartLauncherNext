@@ -52,7 +52,7 @@ namespace SmartLauncher
             left.Children.Add(sub);
 
             TextBlock version = new TextBlock();
-            version.Text = "v" + typeof(SettingsWindow).Assembly.GetName().Version.ToString(2);
+            version.Text = "v" + typeof(SettingsWindow).Assembly.GetName().Version.ToString(3);
             version.FontSize = 10.5;
             version.Foreground = Theme.TextSecondaryBrush;
             version.VerticalAlignment = VerticalAlignment.Center;
