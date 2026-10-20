@@ -15,6 +15,7 @@ namespace SmartLauncher
         private static EventWaitHandle _showEvent;
         private static EventWaitHandle _toggleEvent;
         private static EventWaitHandle _settingsEvent;
+        private static EventWaitHandle _hideEvent;
         private static Thread _ipcThread;
         private static DateTime _lastActivity = DateTime.Now;
         private static string InstancePrefix = "Local\\SmartLauncherNext.SL2.";
@@ -53,12 +54,15 @@ namespace SmartLauncher
         {
             bool show = false;
             bool settings = false;
+            bool toggle = false;
+            bool hide = false;
             bool pinned = false;
 
             foreach (string a in args)
             {
                 if (string.Equals(a, "--show", StringComparison.OrdinalIgnoreCase)) show = true;
-                else if (string.Equals(a, "--toggle", StringComparison.OrdinalIgnoreCase)) show = true;
+                else if (string.Equals(a, "--toggle", StringComparison.OrdinalIgnoreCase)) toggle = true;
+                else if (string.Equals(a, "--hide", StringComparison.OrdinalIgnoreCase)) hide = true;
                 else if (string.Equals(a, "--settings", StringComparison.OrdinalIgnoreCase)) settings = true;
                 else if (string.Equals(a, "--pin", StringComparison.OrdinalIgnoreCase)) pinned = true;
                 else if (string.Equals(a, "--dark", StringComparison.OrdinalIgnoreCase)) Theme.OverrideTheme = 1;
@@ -87,7 +91,7 @@ namespace SmartLauncher
             if (!created)
             {
                 Log.Write("second instance, signaling");
-                if (Signal(show, settings)) return;
+                if (Signal(show, settings, toggle, hide)) return;
 
                 Log.Write("signal failed, waiting for old instance to exit");
                 try
@@ -138,7 +142,7 @@ namespace SmartLauncher
             };
             idle.Start();
 
-            if (show || settings)
+            if (show || settings || toggle)
             {
                 app.Dispatcher.BeginInvoke(new Action(delegate
                 {
@@ -168,10 +172,11 @@ namespace SmartLauncher
             _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, InstancePrefix + "Show");
             _toggleEvent = new EventWaitHandle(false, EventResetMode.AutoReset, InstancePrefix + "Toggle");
             _settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, InstancePrefix + "Settings");
+            _hideEvent = new EventWaitHandle(false, EventResetMode.AutoReset, InstancePrefix + "Hide");
 
             _ipcThread = new Thread(delegate()
             {
-                WaitHandle[] handles = new WaitHandle[] { _showEvent, _toggleEvent, _settingsEvent };
+                WaitHandle[] handles = new WaitHandle[] { _showEvent, _toggleEvent, _settingsEvent, _hideEvent };
                 while (true)
                 {
                     int index;
@@ -189,7 +194,8 @@ namespace SmartLauncher
                             if (Panel.IsVisible) Panel.HideNow();
                             else Panel.ShowPanel();
                         }
-                        else Panel.OpenSettings();
+                        else if (captured == 2) Panel.OpenSettings();
+                        else Panel.HideNow();
                     }));
                 }
             });
@@ -204,6 +210,7 @@ namespace SmartLauncher
                 if (_showEvent != null) _showEvent.Close();
                 if (_toggleEvent != null) _toggleEvent.Close();
                 if (_settingsEvent != null) _settingsEvent.Close();
+                if (_hideEvent != null) _hideEvent.Close();
                 if (_mutex != null) _mutex.ReleaseMutex();
             }
             catch
@@ -211,9 +218,9 @@ namespace SmartLauncher
             }
         }
 
-        private static bool Signal(bool show, bool settings)
+        private static bool Signal(bool show, bool settings, bool toggle, bool hide)
         {
-            string suffix = settings ? "Settings" : (show ? "Show" : "Toggle");
+            string suffix = hide ? "Hide" : (toggle ? "Toggle" : (settings ? "Settings" : "Show"));
             EventWaitHandle ev = null;
             for (int i = 0; i < 40; i++)
             {
