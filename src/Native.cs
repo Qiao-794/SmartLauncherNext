@@ -179,8 +179,9 @@ namespace SmartLauncher
             {
                 if (fgThread != 0 && fgThread != thisThread)
                     attached = AttachThreadInput(thisThread, fgThread, true);
-                keybd_event(0x12, 0, 0, UIntPtr.Zero);
-                keybd_event(0x12, 0, 0x0002, UIntPtr.Zero);
+                keybd_event(0x12, 0x38, 0x0002, UIntPtr.Zero);
+                keybd_event(0xA4, 0x38, 0x0002, UIntPtr.Zero);
+                keybd_event(0xA5, 0x38, 0x0002, UIntPtr.Zero);
                 ShowWindow(hwnd, 5);
                 SetWindowPos(hwnd, (IntPtr)(-1), 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0040);
                 SetForegroundWindow(hwnd);
@@ -191,6 +192,16 @@ namespace SmartLauncher
             }
             finally
             {
+                keybd_event(0x12, 0x38, 0x0002, UIntPtr.Zero);
+                keybd_event(0xA4, 0x38, 0x0002, UIntPtr.Zero);
+                keybd_event(0xA5, 0x38, 0x0002, UIntPtr.Zero);
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                {
+                    System.Threading.Thread.Sleep(150);
+                    keybd_event(0x12, 0x38, 0x0002, UIntPtr.Zero);
+                    keybd_event(0xA4, 0x38, 0x0002, UIntPtr.Zero);
+                    keybd_event(0xA5, 0x38, 0x0002, UIntPtr.Zero);
+                });
                 if (attached)
                     AttachThreadInput(thisThread, fgThread, false);
             }

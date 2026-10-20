@@ -72,7 +72,7 @@ namespace SmartLauncher
             ResizeMode = ResizeMode.NoResize;
             ShowInTaskbar = false;
             Topmost = true;
-            ShowActivated = false;
+            ShowActivated = true;
             AllowsTransparency = true;
             Background = Brushes.Transparent;
             Width = PanelWidth + ShadowMargin * 2;

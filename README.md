@@ -49,6 +49,7 @@ Quicker 动作保持原样即可（主路径现在已经存在）：
 ## 命令行
 
 - `--show`：显示面板（Quicker 用这个）
+- Quicker 中键动作建议：运行 `--show` → 等待 150ms → 窗口操作/激活窗口 标题 `SmartLauncherNextPanel`。v1.2.2 不再模拟 Alt，靠 Quicker 激活可以避免 Alt 卡住任务栏
 - `--toggle`：显示 / 隐藏
 - `--settings`：打开设置
 - `--background`：只启动后台，不显示面板
