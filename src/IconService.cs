@@ -32,6 +32,64 @@ namespace SmartLauncher
             Cache.Clear();
         }
 
+        private const int WM_GETICON = 0x007F;
+        private const int ICON_SMALL = 0;
+        private const int ICON_BIG = 1;
+        private const int ICON_SMALL2 = 2;
+        private const int GCLP_HICON = -14;
+        private const uint SMTO_ABORTIFHUNG = 0x0002;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
+
+        [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
+        private static extern IntPtr GetClassLongPtr(IntPtr hWnd, int index);
+
+        /// <summary>
+        /// Icon of a live window: window icon first (works for UWP frames), then the
+        /// owner process image, then a generated letter tile.
+        /// </summary>
+        public static BitmapSource GetForWindow(IntPtr hwnd, string exePath, string title)
+        {
+            string key = "win|" + hwnd.ToInt64().ToString("x") + "|" + (exePath ?? "");
+            BitmapSource cached;
+            if (Cache.TryGetValue(key, out cached)) return cached;
+
+            BitmapSource img = null;
+            try
+            {
+                IntPtr result;
+                IntPtr hIcon = IntPtr.Zero;
+                if (SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_BIG, IntPtr.Zero, SMTO_ABORTIFHUNG, 300, out result) != IntPtr.Zero)
+                    hIcon = result;
+                if (hIcon == IntPtr.Zero && SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 300, out result) != IntPtr.Zero)
+                    hIcon = result;
+                if (hIcon == IntPtr.Zero && SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_SMALL, IntPtr.Zero, SMTO_ABORTIFHUNG, 300, out result) != IntPtr.Zero)
+                    hIcon = result;
+                if (hIcon == IntPtr.Zero)
+                    hIcon = GetClassLongPtr(hwnd, GCLP_HICON);
+
+                if (hIcon != IntPtr.Zero)
+                {
+                    BitmapSource bmp = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    bmp.Freeze();
+                    img = bmp;
+                }
+            }
+            catch
+            {
+            }
+
+            if (img == null && !string.IsNullOrEmpty(exePath) && File.Exists(exePath))
+                img = FromExe(exePath);
+
+            if (img == null)
+                img = Letter(string.IsNullOrEmpty(title) ? "?" : title);
+
+            Cache[key] = img;
+            return img;
+        }
+
         public static BitmapSource Get(Item item)
         {
             if (item == null) return Letter("?");

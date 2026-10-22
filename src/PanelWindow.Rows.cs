@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -7,77 +10,78 @@ using System.Windows.Media;
 namespace SmartLauncher
 {
     public partial class PanelWindow
-    {        private void BuildRows()
+    {
+        private const int MaxWindowRows = 8;
+
+        private void BuildWindowRows()
         {
             _hoverRow = null;
             _list.Children.Clear();
             _rows.Clear();
 
-            double contentHeight = 13;
-            bool first = true;
-            int index = 0;
-
-            if (_config != null && _config.Categories != null)
+            uint selfPid = (uint)Process.GetCurrentProcess().Id;
+            IntPtr foreground = Native.GetForegroundWindow();
+            int total;
+            List<WindowInfo> windows = WindowList.Enumerate(selfPid, MaxWindowRows, out total);
+            Log.Write("windows rows=" + windows.Count + " total=" + total);
+            try
             {
-                foreach (Category cat in _config.Categories)
+                StringBuilder sb = new StringBuilder();
+                foreach (WindowInfo w in windows)
                 {
-                    if (cat == null) continue;
-                    if (!first)
-                    {
-                        Border sep = new Border();
-                        sep.Height = 1;
-                        sep.Background = Theme.SeparatorBrush;
-                        sep.Margin = new Thickness(9, 3, 9, 4);
-                        _list.Children.Add(sep);
-                        contentHeight += 8;
-                    }
-                    first = false;
-
-                    Border headerBox = new Border();
-                    headerBox.Height = 23;
-                    headerBox.Padding = new Thickness(9, 0, 0, 0);
-                    TextBlock header = new TextBlock();
-                    header.Text = cat.Name;
-                    header.FontSize = 10.5;
-                    header.FontWeight = FontWeights.SemiBold;
-                    header.Foreground = Theme.TextSecondaryBrush;
-                    header.VerticalAlignment = VerticalAlignment.Center;
-                    headerBox.Child = header;
-                    _list.Children.Add(headerBox);
-                    contentHeight += 23;
-
-                    if (cat.Items == null) continue;
-                    foreach (Item item in cat.Items)
-                    {
-                        if (item == null) continue;
-                        RowView row = BuildRow(item, index);
-                        index++;
-                        _list.Children.Add(row.Container);
-                        _rows.Add(row);
-                        contentHeight += 29;
-                    }
+                    if (sb.Length > 0) sb.Append(" | ");
+                    sb.Append(w.Title);
                 }
+                Log.Write("windows list: " + sb.ToString());
+            }
+            catch
+            {
             }
 
-            if (_rows.Count == 0)
+            double contentHeight = 13;
+            if (windows.Count == 0)
             {
                 TextBlock empty = new TextBlock();
-                empty.Text = "还没有条目，右键打开设置";
+                empty.Text = "没有其他窗口";
                 empty.FontSize = 11.5;
                 empty.Foreground = Theme.TextSecondaryBrush;
                 empty.Margin = new Thickness(12, 14, 12, 14);
                 _list.Children.Add(empty);
                 contentHeight += 45;
             }
+            else
+            {
+                int index = 0;
+                foreach (WindowInfo info in windows)
+                {
+                    RowView row = BuildWindowRow(info, index, info.Hwnd == foreground);
+                    index++;
+                    _list.Children.Add(row.Container);
+                    _rows.Add(row);
+                    contentHeight += 29;
+                }
 
-            Height = Math.Min(contentHeight, 720) + ShadowMargin * 2;
+                if (total > windows.Count)
+                {
+                    TextBlock more = new TextBlock();
+                    more.Text = "还有 " + (total - windows.Count) + " 个窗口";
+                    more.FontSize = 9.5;
+                    more.Foreground = Theme.TextSecondaryBrush;
+                    more.Margin = new Thickness(12, 3, 12, 3);
+                    _list.Children.Add(more);
+                    contentHeight += 19;
+                }
+            }
+
+            Height = contentHeight + ShadowMargin * 2;
+            _selected = _rows.Count > 1 ? 1 : (_rows.Count == 1 ? 0 : -1);
             UpdateSelection();
         }
 
-        private RowView BuildRow(Item item, int index)
+        private RowView BuildWindowRow(WindowInfo info, int index, bool isForeground)
         {
             RowView row = new RowView();
-            row.Item = item;
+            row.Hwnd = info.Hwnd;
             row.Index = index;
             row.Bg = new SolidColorBrush(Colors.Transparent);
 
@@ -93,7 +97,7 @@ namespace SmartLauncher
             grid.ColumnDefinitions.Add(new ColumnDefinition());
             grid.ColumnDefinitions[0].Width = new GridLength(29);
             grid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
-            grid.ColumnDefinitions[2].Width = new GridLength(29);
+            grid.ColumnDefinitions[2].Width = GridLength.Auto;
 
             Border indicator = new Border();
             indicator.Width = 2;
@@ -109,69 +113,83 @@ namespace SmartLauncher
             row.Indicator = indicator;
 
             Image icon = new Image();
-            icon.Width = 20;
-            icon.Height = 20;
+            icon.Width = 18;
+            icon.Height = 18;
             icon.Stretch = Stretch.Uniform;
             icon.HorizontalAlignment = HorizontalAlignment.Center;
             icon.VerticalAlignment = VerticalAlignment.Center;
-            icon.Source = IconService.Get(item);
+            icon.Source = IconService.GetForWindow(info.Hwnd, info.ExePath, info.Title);
             RenderOptions.SetBitmapScalingMode(icon, BitmapScalingMode.HighQuality);
             Grid.SetColumn(icon, 0);
             grid.Children.Add(icon);
             row.Icon = icon;
 
             TextBlock name = new TextBlock();
-            name.Text = item.Name;
+            name.Text = info.Title;
             name.FontSize = 12.2;
             name.Foreground = Theme.TextPrimaryBrush;
             name.VerticalAlignment = VerticalAlignment.Center;
             name.TextTrimming = TextTrimming.CharacterEllipsis;
             name.TextWrapping = TextWrapping.NoWrap;
-            name.Margin = new Thickness(7, 0, 5, 0);
+            name.Margin = new Thickness(7, 0, 6, 0);
             Grid.SetColumn(name, 1);
             grid.Children.Add(name);
             row.Name = name;
 
-            Border keyBox = new Border();
-            keyBox.Width = 20;
-            keyBox.Height = 20;
-            keyBox.CornerRadius = new CornerRadius(4);
-            keyBox.Background = Theme.KeycapBgBrush;
-            keyBox.BorderBrush = Theme.KeycapBorderBrush;
-            keyBox.BorderThickness = new Thickness(1);
-            keyBox.HorizontalAlignment = HorizontalAlignment.Right;
-            keyBox.VerticalAlignment = VerticalAlignment.Center;
-            keyBox.Margin = new Thickness(0, 0, 7, 0);
-            TextBlock key = new TextBlock();
-            key.Text = item.Key == null ? "" : item.Key.ToUpperInvariant();
-            key.FontSize = 9;
-            key.Foreground = Theme.KeyTextBrush;
-            key.HorizontalAlignment = HorizontalAlignment.Center;
-            key.VerticalAlignment = VerticalAlignment.Center;
-            keyBox.Child = key;
-            Grid.SetColumn(keyBox, 2);
-            grid.Children.Add(keyBox);
-            row.KeyBox = keyBox;
-            row.Key = key;
-            if (string.IsNullOrEmpty(item.Key)) keyBox.Visibility = Visibility.Collapsed;
+            TextBlock meta = new TextBlock();
+            meta.Text = isForeground ? "当前" : (info.Minimized ? "最小化" : ShortName(info.ProcessName));
+            meta.FontSize = 9;
+            meta.Foreground = isForeground ? Theme.AccentBrush : Theme.TextSecondaryBrush;
+            meta.VerticalAlignment = VerticalAlignment.Center;
+            meta.Margin = new Thickness(0, 0, 9, 0);
+            meta.TextTrimming = TextTrimming.CharacterEllipsis;
+            meta.TextWrapping = TextWrapping.NoWrap;
+            Grid.SetColumn(meta, 2);
+            grid.Children.Add(meta);
+            row.Meta = meta;
 
             container.Child = grid;
             container.Tag = row;
             container.MouseLeftButtonUp += delegate
             {
-                Launch(row);
+                ActivateWindow(row);
             };
+
             row.Container = container;
             return row;
         }
 
+        private static string ShortName(string processName)
+        {
+            string name = (processName ?? "").Trim();
+            if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                name = name.Substring(0, name.Length - 4);
+            if (name.Length > 14) name = name.Substring(0, 14);
+            return name;
+        }
+
+        private void ActivateWindow(RowView row)
+        {
+            if (row == null || row.Hwnd == IntPtr.Zero) return;
+
+            // 必须仍在前台时切换，否则 SetForegroundWindow 会被系统拒绝
+            IntPtr hwnd = row.Hwnd;
+            if (WindowList.Activate(hwnd))
+            {
+                HidePanel(false);
+            }
+            else
+            {
+                ShowStatus("无法切换到该窗口");
+            }
+        }
+
         private class RowView
         {
-            public Item Item;
+            public IntPtr Hwnd;
             public Border Container;
-            public Border KeyBox;
-            public TextBlock Key;
             public TextBlock Name;
+            public TextBlock Meta;
             public Image Icon;
             public Border Indicator;
             public SolidColorBrush Bg;
@@ -185,9 +203,6 @@ namespace SmartLauncher
                 if (!Bg.Color.Equals(target)) Bg.Color = target;
 
                 Name.Foreground = Theme.TextPrimaryBrush;
-                Key.Foreground = Theme.KeyTextBrush;
-                KeyBox.Background = Theme.KeycapBgBrush;
-                KeyBox.BorderBrush = Theme.KeycapBorderBrush;
                 Indicator.Visibility = Selected ? Visibility.Visible : Visibility.Collapsed;
             }
         }

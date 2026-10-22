@@ -31,6 +31,7 @@ namespace SmartLauncher
         private readonly Border _status;
         private readonly TextBlock _statusText;
         private readonly List<RowView> _rows = new List<RowView>();
+        private readonly Dictionary<string, Item> _keyMap = new Dictionary<string, Item>(StringComparer.OrdinalIgnoreCase);
         private readonly DispatcherTimer _statusTimer;
         private readonly DispatcherTimer _trimTimer;
         private int _selected = -1;
@@ -193,7 +194,8 @@ namespace SmartLauncher
 
             };
 
-            BuildRows();
+            BuildKeyMap();
+            BuildWindowRows();
             Log.Write("Panel rows built rows=" + _rows.Count + " height=" + Height);
 
             SourceInitialized += OnSourceInitialized;
@@ -210,7 +212,8 @@ namespace SmartLauncher
         public void Reload(AppConfig config)
         {
             _config = config;
-            BuildRows();
+            BuildKeyMap();
+            BuildWindowRows();
             if (IsVisible)
             {
                 UpdateLayout();
@@ -243,7 +246,7 @@ namespace SmartLauncher
 
             if (Theme.Load())
             {
-                BuildRows();
+                BuildWindowRows();
             }
             _panel.Background = Theme.PanelSolidBrush;
             _panel.BorderBrush = Theme.PanelBorderBrush;
@@ -264,8 +267,6 @@ namespace SmartLauncher
             StartClickWatch();
             Topmost = true;
             _status.Visibility = Visibility.Collapsed;
-            _selected = -1;
-            UpdateSelection();
 
             if (Activity != null) Activity(this, EventArgs.Empty);
         }
@@ -432,11 +433,29 @@ namespace SmartLauncher
             }
             Log.Write("position cursor=" + pt.X + "," + pt.Y + " work=" + work + " scale=" + scale.ToString("0.##") + " left=" + Left + " top=" + Top);
         }
-        private void Launch(RowView row)
+        private void BuildKeyMap()
         {
-            if (row == null) return;
+            _keyMap.Clear();
+            if (_config == null || _config.Categories == null) return;
+            foreach (Category cat in _config.Categories)
+            {
+                if (cat == null || cat.Items == null) continue;
+                foreach (Item item in cat.Items)
+                {
+                    if (item == null || string.IsNullOrEmpty(item.Key)) continue;
+                    string key = item.Key.Trim().ToUpperInvariant();
+                    if (key.Length == 0 || _keyMap.ContainsKey(key)) continue;
+                    _keyMap[key] = item;
+                }
+            }
+            Log.Write("keymap keys=" + _keyMap.Count);
+        }
+
+        private void LaunchItem(Item item)
+        {
+            if (item == null) return;
             string error;
-            if (Launcher.TryRun(row.Item, out error))
+            if (Launcher.TryRun(item, out error))
             {
                 HidePanel(false);
             }
@@ -444,6 +463,15 @@ namespace SmartLauncher
             {
                 ShowStatus(error);
             }
+        }
+
+        private bool TryToken(string token)
+        {
+            if (string.IsNullOrEmpty(token)) return false;
+            Item item;
+            if (!_keyMap.TryGetValue(token, out item)) return false;
+            LaunchItem(item);
+            return true;
         }
 
         private void ShowStatus(string text)
@@ -526,22 +554,14 @@ namespace SmartLauncher
             }
             if (e.Key == Key.Enter)
             {
-                if (_selected >= 0 && _selected < _rows.Count) Launch(_rows[_selected]);
+                if (_selected >= 0 && _selected < _rows.Count) ActivateWindow(_rows[_selected]);
                 e.Handled = true;
                 return;
             }
 
             string token = KeyToToken(e.Key);
             if (token == null) return;
-            for (int i = 0; i < _rows.Count; i++)
-            {
-                if (string.Equals(_rows[i].Item.Key, token, StringComparison.OrdinalIgnoreCase))
-                {
-                    e.Handled = true;
-                    Launch(_rows[i]);
-                    return;
-                }
-            }
+            if (TryToken(token)) e.Handled = true;
         }
 
         private void BeginFocusGrace()
@@ -727,7 +747,7 @@ namespace SmartLauncher
             {
                 Dispatcher.BeginInvoke(new Action(delegate
                 {
-                    if (_selected >= 0 && _selected < _rows.Count) Launch(_rows[_selected]);
+                    if (_selected >= 0 && _selected < _rows.Count) ActivateWindow(_rows[_selected]);
                 }));
                 return true;
             }
@@ -741,14 +761,7 @@ namespace SmartLauncher
         private void HandleGlobalToken(string token)
         {
             if (!IsVisible || IsHiding) return;
-            for (int i = 0; i < _rows.Count; i++)
-            {
-                if (string.Equals(_rows[i].Item.Key, token, StringComparison.OrdinalIgnoreCase))
-                {
-                    Launch(_rows[i]);
-                    return;
-                }
-            }
+            TryToken(token);
         }
         private void OnRightClick(object sender, MouseButtonEventArgs e)
         {
@@ -849,7 +862,7 @@ namespace SmartLauncher
             Background = Brushes.Transparent;
             _panel.Background = Theme.PanelSolidBrush;
             _panel.BorderBrush = Theme.PanelBorderBrush;
-            BuildRows();
+            BuildWindowRows();
             if (IsVisible)
             {
                 UpdateLayout();

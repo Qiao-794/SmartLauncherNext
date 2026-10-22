@@ -1,17 +1,17 @@
 # SmartLauncher Next
 
-Windows 11 风格的快速启动面板。用 Quicker 的鼠标中键唤起，按单键启动已配置的 Quicker 动作、本地程序或网址。
+Windows 11 风格的窗口总览面板。用 Quicker 的鼠标中键唤起，上方列出当前桌面的窗口，点击或回车切换；同时保留单键启动 Quicker 动作 / 本地程序 / 网址。
 
 ## 已部署位置
 
-- 程序：`D:\Toolo\SmartLauncher_Next_Lite\SmartLauncherNext.exe`
+- 程序：`D:\Tools\SmartLauncher_Next_Lite\SmartLauncherNext.exe`
 - 配置：同目录 `launcher.json`（保存时自动备份为 `launcher.json.bak`）
 - 图标：同目录 `Cache\Icons\`
 
 Quicker 动作保持原样即可（主路径现在已经存在）：
 
 - 动作类型：运行程序或打开文件
-- 路径：`D:\Toolo\SmartLauncher_Next_Lite\SmartLauncherNext.exe`
+- 路径：`D:\Tools\SmartLauncher_Next_Lite\SmartLauncherNext.exe`
 - 参数：`--show`
 - 快捷键：鼠标中键
 
@@ -19,11 +19,13 @@ Quicker 动作保持原样即可（主路径现在已经存在）：
 
 ## 面板
 
-- 单键：`A-Z`、`0-9`、`F1-F12`；面板打开时按键由面板优先接管（全局键盘钩子），焦点不在面板上也能用\n- 鼠标左键点击面板外立即关闭；`Esc` 也关闭
-- `↑` `↓` 选择，`Enter` 启动
-- `Esc` 或点击面板外关闭
-- 右键：设置 / 退出
-- 面板 243×473，窗口 269×499（13px 阴影边距）；layered WPF 合成、实心面 + 1px 边框 + 10px 圆角 + DropShadow 阴影；不截屏模糊，不使用 DWM/WindowChrome
+- 窗口列表：枚举当前桌面的顶层窗口（Z 序，等同 Alt+Tab 顺序），最多显示 8 个，超出显示「还有 N 个窗口」
+- 窗口行：图标 + 标题 + 进程名；当前前台窗口标「当前」，最小化标「最小化」
+- 切换：点击窗口行，或 `↑` `↓` 选择后 `Enter`
+- 单键：`A-Z`、`0-9`、`F1-F12` 仍然直接启动配置项（列表不显示键位，按键由全局钩子接管）
+- `Esc` 或点击面板外关闭；右键：设置 / 退出
+- 面板高度随窗口数量动态变化（13 + 29×行数 + 26），可见期间冻结尺寸
+- 宽 243、窗口 269（13px 阴影边距）；layered WPF 合成、实心面 + 1px 边框 + 10px 圆角 + DropShadow 阴影；不截屏模糊，不使用 DWM/WindowChrome
 - 鼠标移出不会自动关闭；左键点击面板外关闭（Deactivated + 30ms 左键轮询兜底）
 - 跟随系统深浅色；面板为实心磨砂面，不再截屏/模糊
 
