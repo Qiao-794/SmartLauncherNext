@@ -24,6 +24,7 @@ namespace SmartLauncher
             int total;
             List<WindowInfo> windows = WindowList.Enumerate(selfPid, MaxWindowRows, out total);
             Log.Write("windows rows=" + windows.Count + " total=" + total);
+            Log.Write("windows filter: " + WindowList.LastDiagnostics);
             try
             {
                 StringBuilder sb = new StringBuilder();

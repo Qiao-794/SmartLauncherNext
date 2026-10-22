@@ -65,19 +65,34 @@ namespace SmartLauncher
 
         private static readonly Dictionary<uint, string[]> ProcessCache = new Dictionary<uint, string[]>();
 
+        public static string LastDiagnostics = "";
+
+        private static int _skipTool;
+        private static int _skipOwned;
+        private static int _skipCloaked;
+        private static int _skipTitle;
+
         public static List<WindowInfo> Enumerate(uint selfPid, int max, out int total)
         {
             List<IntPtr> handles = new List<IntPtr>();
             List<string> titles = new List<string>();
             List<uint> pids = new List<uint>();
             int seen = 0;
+            _skipTool = 0;
+            _skipOwned = 0;
+            _skipCloaked = 0;
+            _skipTitle = 0;
 
             EnumWindows(delegate(IntPtr h, IntPtr l)
             {
                 if (!IsCandidate(h, selfPid)) return true;
 
                 string title = TitleOf(h);
-                if (title.Length == 0) return true;
+                if (title.Length == 0)
+                {
+                    _skipTitle++;
+                    return true;
+                }
 
                 seen++;
                 if (handles.Count >= max) return true;
@@ -93,6 +108,9 @@ namespace SmartLauncher
             }, IntPtr.Zero);
 
             total = seen;
+            LastDiagnostics = "kept=" + handles.Count + " total=" + seen
+                + " skipTool=" + _skipTool + " skipOwned=" + _skipOwned
+                + " skipCloaked=" + _skipCloaked + " skipNoTitle=" + _skipTitle;
 
             List<WindowInfo> list = new List<WindowInfo>(handles.Count);
             for (int i = 0; i < handles.Count; i++)
@@ -150,13 +168,28 @@ namespace SmartLauncher
             int exStyle = GetWindowLong(h, GWL_EXSTYLE);
             bool tool = (exStyle & WS_EX_TOOLWINDOW) != 0;
             bool app = (exStyle & WS_EX_APPWINDOW) != 0;
-            if (tool && !app) return false;
 
-            if (GetWindow(h, GW_OWNER) != IntPtr.Zero) return false;
+            // 与任务栏 / Alt+Tab 一致：工具窗口不进列表，除非显式标了 APPWINDOW
+            if (tool && !app)
+            {
+                _skipTool++;
+                return false;
+            }
+
+            // 有 owner 但没标 APPWINDOW 的才排除（百度网盘这类绿色版主窗口带 owner，
+            // 但带 WS_EX_APPWINDOW，Alt+Tab 会显示，所以不能一律按 owner 过滤）
+            if (GetWindow(h, GW_OWNER) != IntPtr.Zero && !app)
+            {
+                _skipOwned++;
+                return false;
+            }
 
             int cloaked;
             if (DwmGetWindowAttribute(h, DWMWA_CLOAKED, out cloaked, sizeof(int)) == 0 && cloaked != 0)
+            {
+                _skipCloaked++;
                 return false;
+            }
 
             uint pid;
             GetWindowThreadProcessId(h, out pid);

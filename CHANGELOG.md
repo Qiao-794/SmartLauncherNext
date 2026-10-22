@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 - 2026-10-22
+
+- 修复漏窗：窗口过滤改为与任务栏/Alt+Tab 一致的规则（有 owner 但带 WS_EX_APPWINDOW 的窗口保留，例如绿色版百度网盘）
+- 新增窗口过滤诊断日志（skipTool / skipOwned / skipCloaked / skipNoTitle）
+
 ## 1.3.1 - 2026-10-22
 
 - 鼠标悬停与键盘选中合并为同一个选中态：移动鼠标即移动高亮，方向键选中后鼠标不动则保持
