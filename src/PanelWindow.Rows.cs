@@ -15,7 +15,7 @@ namespace SmartLauncher
 
         private void BuildWindowRows()
         {
-            _hoverRow = null;
+            SyncCursorPoint();
             _list.Children.Clear();
             _rows.Clear();
 
@@ -193,13 +193,12 @@ namespace SmartLauncher
             public Image Icon;
             public Border Indicator;
             public SolidColorBrush Bg;
-            public bool Hover;
             public bool Selected;
             public int Index;
 
             public void Apply()
             {
-                Color target = Selected ? Theme.RowSelectedColor : (Hover ? Theme.RowHoverColor : Colors.Transparent);
+                Color target = Selected ? Theme.RowSelectedColor : Colors.Transparent;
                 if (!Bg.Color.Equals(target)) Bg.Color = target;
 
                 Name.Foreground = Theme.TextPrimaryBrush;

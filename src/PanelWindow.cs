@@ -54,7 +54,9 @@ namespace SmartLauncher
         private bool _everActive;
         private int _focusAttempts;
         private DateTime _activatedAt;
-        private RowView _hoverRow;
+        private int _cursorX;
+        private int _cursorY;
+        private bool _hasCursorPoint;
         private readonly DispatcherTimer _hoverTimer;
         private DateTime _focusGraceUntil;
 
@@ -195,8 +197,7 @@ namespace SmartLauncher
             };
 
             BuildKeyMap();
-            BuildWindowRows();
-            Log.Write("Panel rows built rows=" + _rows.Count + " height=" + Height);
+            Log.Write("Panel ctor done");
 
             SourceInitialized += OnSourceInitialized;
             Deactivated += OnDeactivated;
@@ -244,10 +245,8 @@ namespace SmartLauncher
                 return;
             }
 
-            if (Theme.Load())
-            {
-                BuildWindowRows();
-            }
+            Theme.Load();
+            BuildWindowRows();
             _panel.Background = Theme.PanelSolidBrush;
             _panel.BorderBrush = Theme.PanelBorderBrush;
             Background = Brushes.Transparent;
@@ -336,7 +335,6 @@ namespace SmartLauncher
             if (!IsVisible || IsHiding) return;
             Hooks.Uninstall();
             _hoverTimer.Stop();
-            SetHover(null);
             _focusTimer.Stop();
             _activationTimer.Stop();
             _clickTimer.Stop();
@@ -660,67 +658,64 @@ namespace SmartLauncher
         {
             if (!IsVisible) return;
 
-            RowView target = null;
-            bool inside = false;
             Native.POINT sp;
-            if (Native.GetCursorPos(out sp))
-            {
-                Point p = PointFromScreen(new Point(sp.X, sp.Y));
-                inside = p.X >= 0 && p.Y >= 0 && p.X < ActualWidth && p.Y < ActualHeight;
-                if (inside)
-                {
-                    IInputElement hit = InputHitTest(p);
-                    DependencyObject d = hit as DependencyObject;
-                    while (d != null)
-                    {
-                        Border b = d as Border;
-                        if (b != null && b.Tag is RowView)
-                        {
-                            target = (RowView)b.Tag;
-                            break;
-                        }
-                        d = VisualTreeHelper.GetParent(d);
-                    }
-                }
-            }
-            SetHover(target);
+            if (!Native.GetCursorPos(out sp)) return;
+            if (_hasCursorPoint && sp.X == _cursorX && sp.Y == _cursorY) return;
+            _hasCursorPoint = true;
+            _cursorX = sp.X;
+            _cursorY = sp.Y;
+
+            Point p = PointFromScreen(new Point(sp.X, sp.Y));
+            if (p.X < 0 || p.Y < 0 || p.X >= ActualWidth || p.Y >= ActualHeight) return;
+
+            RowView row = HitRow(p);
+            if (row != null) SelectIndex(row.Index);
         }
 
         private void OnPanelMouseMove(object sender, MouseEventArgs e)
         {
-            RowView target = null;
-            IInputElement hit = InputHitTest(e.GetPosition(this));
-            DependencyObject d = hit as DependencyObject;
-            while (d != null)
-            {
-                Border b = d as Border;
-                if (b != null && b.Tag is RowView)
-                {
-                    target = (RowView)b.Tag;
-                    break;
-                }
-                d = VisualTreeHelper.GetParent(d);
-            }
-            SetHover(target);
+            RowView row = HitRow(e.GetPosition(this));
+            if (row != null) SelectIndex(row.Index);
         }
 
         private void OnPanelMouseLeave(object sender, MouseEventArgs e)
         {
-            SetHover(null);
+            // 选中不再跟随鼠标离开而消失：鼠标与键盘共用同一个选中态
         }
-        private void SetHover(RowView target)
+
+        private RowView HitRow(Point p)
         {
-            if (_hoverRow == target) return;
-            if (_hoverRow != null)
+            IInputElement hit = InputHitTest(p);
+            DependencyObject d = hit as DependencyObject;
+            while (d != null)
             {
-                _hoverRow.Hover = false;
-                _hoverRow.Apply();
+                Border b = d as Border;
+                if (b != null && b.Tag is RowView) return (RowView)b.Tag;
+                d = VisualTreeHelper.GetParent(d);
             }
-            _hoverRow = target;
-            if (_hoverRow != null)
+            return null;
+        }
+
+        private void SelectIndex(int index)
+        {
+            if (index < 0 || index >= _rows.Count) return;
+            if (_selected == index) return;
+            _selected = index;
+            UpdateSelection();
+        }
+
+        private void SyncCursorPoint()
+        {
+            Native.POINT sp;
+            if (Native.GetCursorPos(out sp))
             {
-                _hoverRow.Hover = true;
-                _hoverRow.Apply();
+                _cursorX = sp.X;
+                _cursorY = sp.Y;
+                _hasCursorPoint = true;
+            }
+            else
+            {
+                _hasCursorPoint = false;
             }
         }
         private bool OnGlobalKey(int vk)
