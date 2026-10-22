@@ -35,7 +35,7 @@ Quicker 动作保持原样即可（主路径现在已经存在）：
 - 类型：Quicker 动作（动作 ID 或名称）、本地程序、网址
 - 快捷键：点一下再按一个键；`Delete` 清除
 - 图标：自动提取 exe / 开始菜单图标；也可以选择 PNG / ICO / JPG，自动缓存
-- 导入旧配置：从 `D:\Program Files\SmartLauncher_Lite` 导入并复制图标
+- 导入旧配置：从 `D:\Program Files\SmartLauncher_Lite` 导入并复制图标\n- 导出配置 / 导入配置：单独备份或恢复 launcher.json（图标目录需一起复制）
 - 保存：写入 `launcher.json` 并备份，面板立即刷新
 
 ## 后台与轻量
@@ -50,7 +50,7 @@ Quicker 动作保持原样即可（主路径现在已经存在）：
 
 - `--show`：显示面板（Quicker 用这个）
 - Quicker 中键动作保持原来的 `--show` 即可。只有出现“面板可见但单键无响应/外点不关”时，才在动作里加“窗口操作 → 激活窗口”作为兜底
-- `--toggle`：显示 / 隐藏
+- `--hide`：隐藏现有面板（不退出进程）\n- `--toggle`：显示 / 隐藏
 - `--settings`：打开设置
 - `--background`：只启动后台，不显示面板
 - `--light` / `--dark`：仅调试用；正常跟随系统

@@ -80,6 +80,21 @@ namespace SmartLauncher
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SmartLauncher_Lite")
         };
 
+        public static AppConfig LoadFrom(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
+            try
+            {
+                AppConfig c = Deserialize(File.ReadAllText(path, Encoding.UTF8));
+                if (c == null) return null;
+                Normalize(c);
+                return c;
+            }
+            catch
+            {
+                return null;
+            }
+        }
         public static AppConfig Load(out bool imported)
         {
             imported = false;
@@ -163,6 +178,16 @@ namespace SmartLauncher
             }
         }
 
+        public static void SaveTo(AppConfig cfg, string path)
+        {
+            if (cfg == null) throw new ArgumentNullException("cfg");
+            if (string.IsNullOrEmpty(path)) throw new ArgumentException("path");
+            cfg.SchemaVersion = 2;
+            string json = Serializer().Serialize(cfg);
+            string dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            File.WriteAllText(path, json, new UTF8Encoding(false));
+        }
         public static void Save(AppConfig cfg)
         {
             if (cfg != null) cfg.SchemaVersion = 2;

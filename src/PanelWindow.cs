@@ -46,7 +46,9 @@ namespace SmartLauncher
         private bool _settingsOpen;
         private int _hideGen;
         private readonly DispatcherTimer _focusTimer;
-        private readonly DispatcherTimer _autoHideTimer;
+        private readonly DispatcherTimer _clickTimer;
+        private bool _leftWasDown;
+
         private readonly DispatcherTimer _activationTimer;
         private bool _everActive;
         private int _focusAttempts;
@@ -108,6 +110,8 @@ namespace SmartLauncher
             _panel.BorderBrush = Theme.PanelBorderBrush;
             _panel.Background = Theme.PanelSolidBrush;
             _panel.SnapsToDevicePixels = true;
+            _panel.Focusable = true;
+
             root.Children.Add(_panel);
 
             _content = new Grid();
@@ -166,13 +170,15 @@ namespace SmartLauncher
             _focusTimer.Interval = TimeSpan.FromMilliseconds(250);
             _focusTimer.Tick += delegate { OnFocusRetry(); };
 
-            _autoHideTimer = new DispatcherTimer();
-            _autoHideTimer.Interval = TimeSpan.FromSeconds(6);
-            _autoHideTimer.Tick += delegate
-            {
-                _autoHideTimer.Stop();
-                if (!IsActive && !_pinned) HidePanel(false);
-            };
+            _clickTimer = new DispatcherTimer(DispatcherPriority.Input);
+            _clickTimer.Interval = TimeSpan.FromMilliseconds(30);
+            _clickTimer.Tick += delegate { WatchOutsideClick(); };
+
+
+
+
+
+
 
             _activationTimer = new DispatcherTimer();
             _activationTimer.Interval = TimeSpan.FromMilliseconds(350);
@@ -184,7 +190,7 @@ namespace SmartLauncher
                 _activatedAt = DateTime.Now;
                 _focusTimer.Stop();
                 _activationTimer.Stop();
-                _autoHideTimer.Stop();
+
             };
 
             BuildRows();
@@ -229,6 +235,7 @@ namespace SmartLauncher
                 InstallHooks();
                 _hoverTimer.Stop();
                 _hoverTimer.Start();
+            StartClickWatch();
                 SetState(PanelState.Visible);
                 if (!IsActive) ScheduleActivation();
                 return;
@@ -254,6 +261,7 @@ namespace SmartLauncher
             InstallHooks();
             _hoverTimer.Stop();
             _hoverTimer.Start();
+            StartClickWatch();
             Topmost = true;
             _status.Visibility = Visibility.Collapsed;
             _selected = -1;
@@ -266,13 +274,60 @@ namespace SmartLauncher
             HidePanel(true);
         }
 
+        private void StartClickWatch()
+        {
+            _leftWasDown = false;
+            _clickTimer.Stop();
+            _clickTimer.Start();
+        }
+
+        private void WatchOutsideClick()
+        {
+            if (!IsVisible || _pinned || _settingsOpen || _suppressDeactivate)
+            {
+                _leftWasDown = false;
+                return;
+            }
+
+            bool down = (Native.GetAsyncKeyState(0x01) & 0x8000) != 0;
+            if (!down)
+            {
+                _leftWasDown = false;
+                return;
+            }
+            if (_leftWasDown) return;
+            _leftWasDown = true;
+
+            Native.POINT pt;
+            if (!Native.GetCursorPos(out pt)) return;
+            if (IsScreenPointInsidePanel(pt)) return;
+
+            Log.Write("outside click poll x=" + pt.X + " y=" + pt.Y);
+            HidePanel(false);
+        }
+
+        private bool IsScreenPointInsidePanel(Native.POINT pt)
+        {
+            try
+            {
+                Point tl = PointToScreen(new Point(ShadowMargin, ShadowMargin));
+                Point br = PointToScreen(new Point(ActualWidth - ShadowMargin, ActualHeight - ShadowMargin));
+                return pt.X >= tl.X && pt.X <= br.X && pt.Y >= tl.Y && pt.Y <= br.Y;
+            }
+            catch
+            {
+                return true;
+            }
+        }
         private void ActivatePanel()
         {
             Activate();
             Focus();
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
             Native.ForceForeground(hwnd);
-            Keyboard.Focus(this);
+            _panel.Focus();
+            Keyboard.Focus(_panel);
+            Log.Write("ActivatePanel active=" + IsActive);
         }
 
         private void HidePanel(bool immediate)
@@ -283,13 +338,14 @@ namespace SmartLauncher
             SetHover(null);
             _focusTimer.Stop();
             _activationTimer.Stop();
-            _autoHideTimer.Stop();
+            _clickTimer.Stop();
+            _leftWasDown = false;
             SetState(PanelState.Hiding);
             _hideGen++;
             Log.Write("HidePanel immediate=" + immediate + " pinned=" + _pinned);
 
             Hide();
-            Native.DwmFlush();
+
             ResetVisuals();
             SetState(PanelState.Hidden);
             ScheduleTrim();
@@ -317,13 +373,32 @@ namespace SmartLauncher
         {
             Native.POINT pt;
             Native.GetCursorPos(out pt);
-            System.Drawing.Rectangle work = Native.GetWorkAreaPixels();
+            IntPtr mon = Native.MonitorFromPoint(pt, 2);
+            Native.MONITORINFO mi = new Native.MONITORINFO();
+            mi.cbSize = System.Runtime.InteropServices.Marshal.SizeOf(typeof(Native.MONITORINFO));
+            System.Drawing.Rectangle work;
+            if (mon != IntPtr.Zero && Native.GetMonitorInfo(mon, ref mi))
+                work = System.Drawing.Rectangle.FromLTRB(mi.rcWork.Left, mi.rcWork.Top, mi.rcWork.Right, mi.rcWork.Bottom);
+            else
+                work = Native.GetWorkAreaPixels();
 
             double scale = 1.0;
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            if (hwnd != IntPtr.Zero)
+            try
             {
-                uint dpi = Native.GetDpiForWindow(hwnd);
+                uint dpiX, dpiY;
+                if (mon != IntPtr.Zero && Native.GetDpiForMonitor(mon, Native.MDT_EFFECTIVE_DPI, out dpiX, out dpiY) == 0 && dpiX > 0)
+                    scale = dpiX / 96.0;
+                else
+                {
+                    IntPtr hwndDpi = new WindowInteropHelper(this).Handle;
+                    uint dpi = hwndDpi != IntPtr.Zero ? Native.GetDpiForWindow(hwndDpi) : 96;
+                    if (dpi > 0) scale = dpi / 96.0;
+                }
+            }
+            catch
+            {
+                IntPtr hwndDpi = new WindowInteropHelper(this).Handle;
+                uint dpi = hwndDpi != IntPtr.Zero ? Native.GetDpiForWindow(hwndDpi) : 96;
                 if (dpi > 0) scale = dpi / 96.0;
             }
 
@@ -333,18 +408,30 @@ namespace SmartLauncher
 
             double wpx = contentW * scale;
             double hpx = contentH * scale;
+            double margin = 8 * scale;
             double x = pt.X - 24 * scale;
             double y = pt.Y + 14 * scale;
 
-            if (x + wpx > work.Right - 8) x = work.Right - wpx - 8;
-            if (x < work.Left + 8) x = work.Left + 8;
-            if (y + hpx > work.Bottom - 8) y = pt.Y - hpx - 16 * scale;
-            if (y < work.Top + 8) y = work.Top + 8;
+            if (x + wpx > work.Right - margin) x = work.Right - wpx - margin;
+            if (x < work.Left + margin) x = work.Left + margin;
+            if (y + hpx > work.Bottom - margin)
+            {
+                y = pt.Y - hpx - 16 * scale;
+                if (y < work.Top + margin) y = work.Bottom - hpx - margin;
+            }
+            if (y < work.Top + margin) y = work.Top + margin;
 
             Left = x / scale - ShadowMargin;
             Top = y / scale - ShadowMargin;
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                int leftPx = (int)Math.Round(x - ShadowMargin * scale);
+                int topPx = (int)Math.Round(y - ShadowMargin * scale);
+                Native.SetWindowPos(hwnd, Native.HWND_TOPMOST, leftPx, topPx, 0, 0, Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            }
+            Log.Write("position cursor=" + pt.X + "," + pt.Y + " work=" + work + " scale=" + scale.ToString("0.##") + " left=" + Left + " top=" + Top);
         }
-
         private void Launch(RowView row)
         {
             if (row == null) return;
@@ -465,8 +552,8 @@ namespace SmartLauncher
             _focusTimer.Stop();
             _activationTimer.Stop();
             _activationTimer.Start();
-            _autoHideTimer.Stop();
-            if (!_pinned) _autoHideTimer.Start();
+
+
         }
 
         private void ScheduleActivation()
@@ -476,8 +563,8 @@ namespace SmartLauncher
             _focusTimer.Stop();
             _activationTimer.Stop();
             _activationTimer.Start();
-            _autoHideTimer.Stop();
-            if (!_pinned) _autoHideTimer.Start();
+
+
         }
 
         private void OnActivationTimer()
@@ -486,7 +573,7 @@ namespace SmartLauncher
             if (IsActive)
             {
                 _everActive = true;
-                _autoHideTimer.Stop();
+
                 return;
             }
 
@@ -504,8 +591,8 @@ namespace SmartLauncher
             _focusTimer.Stop();
             if (IsActive)
             {
-                _everActive = true;
-                _autoHideTimer.Stop();
+
+
                 return;
             }
 
@@ -514,8 +601,8 @@ namespace SmartLauncher
             Native.ForceForeground(hwnd);
             if (IsActive)
             {
-                _everActive = true;
-                _autoHideTimer.Stop();
+
+
                 return;
             }
             if (_focusAttempts < 8) _focusTimer.Start();
@@ -794,7 +881,8 @@ namespace SmartLauncher
             _trimTimer.Stop();
             _focusTimer.Stop();
             _activationTimer.Stop();
-            _autoHideTimer.Stop();
+            _clickTimer.Stop();
+            _leftWasDown = false;
             base.OnClosed(e);
         }
 

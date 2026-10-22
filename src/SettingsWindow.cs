@@ -67,7 +67,7 @@ namespace SmartLauncher
             chrome.CaptionHeight = 44;
             chrome.ResizeBorderThickness = new Thickness(6);
             chrome.GlassFrameThickness = new Thickness(0);
-            chrome.CornerRadius = new CornerRadius(0);
+            chrome.CornerRadius = new CornerRadius(10);
             chrome.UseAeroCaptionButtons = false;
             WindowChrome.SetWindowChrome(this, chrome);
 
@@ -142,6 +142,7 @@ namespace SmartLauncher
 
             Closing += OnClosing;
             SourceInitialized += OnSourceInitialized;
+            SizeChanged += delegate { ApplyRoundedRegion(); };
             Activated += delegate { Topmost = true; };
             Deactivated += delegate { Topmost = false; };
             Loaded += delegate
@@ -681,6 +682,51 @@ namespace SmartLauncher
             return "";
         }
 
+        private void ExportConfig()
+        {
+            SaveFileDialog dlg = new SaveFileDialog();
+            dlg.Title = "导出配置";
+            dlg.Filter = "SmartLauncher 配置 (*.json)|*.json";
+            dlg.FileName = "launcher.json";
+            dlg.InitialDirectory = ConfigStore.BaseDir;
+            if (dlg.ShowDialog(this) != true) return;
+            try
+            {
+                ConfigStore.SaveTo(_working, dlg.FileName);
+                SetStatus("已导出到 " + dlg.FileName + "（图标目录 Cache\\Icons 需一起复制）", false);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("导出失败：" + ex.Message, true);
+            }
+        }
+
+        private void ImportConfig()
+        {
+            OpenFileDialog dlg = new OpenFileDialog();
+            dlg.Title = "导入配置";
+            dlg.Filter = "SmartLauncher 配置 (*.json)|*.json|所有文件 (*.*)|*.*";
+            dlg.InitialDirectory = ConfigStore.BaseDir;
+            if (dlg.ShowDialog(this) != true) return;
+
+            AppConfig imported = ConfigStore.LoadFrom(dlg.FileName);
+            if (imported == null)
+            {
+                SetStatus("导入失败：不是有效的 launcher.json", true);
+                return;
+            }
+
+            MessageBoxResult r = MessageBox.Show(this,
+                "将用所选配置覆盖当前编辑内容（尚未保存到磁盘），继续吗？",
+                "导入配置", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+
+            _working = imported;
+            IconService.Clear();
+            LoadRows();
+            _dirty = true;
+            SetStatus("已导入 " + CountItems() + " 项，来源：" + dlg.FileName, false);
+        }
         private void ImportLegacy()
         {
             string source;
@@ -1033,8 +1079,22 @@ namespace SmartLauncher
             Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, 4);
             int noBorder = unchecked((int)0xFFFFFFFE);
             Native.DwmSetWindowAttribute(hwnd, 34, ref noBorder, 4);
+            ApplyRoundedRegion();
         }
 
+        private void ApplyRoundedRegion()
+        {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            uint dpi = Native.GetDpiForWindow(hwnd);
+            double scale = dpi > 0 ? dpi / 96.0 : 1.0;
+            int w = (int)Math.Round(ActualWidth * scale);
+            int h = (int)Math.Round(ActualHeight * scale);
+            if (w <= 0 || h <= 0) return;
+            int r = (int)Math.Round(10 * scale);
+            IntPtr region = Native.CreateRoundRectRgn(0, 0, w + 1, h + 1, r * 2, r * 2);
+            Native.SetWindowRgn(hwnd, region, true);
+        }
         private class RowEditor
         {
             public Item Item;

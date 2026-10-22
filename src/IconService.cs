@@ -41,7 +41,14 @@ namespace SmartLauncher
             if (resolved.Length > 0 && !Path.IsPathRooted(resolved))
                 resolved = Path.Combine(ConfigStore.BaseDir, resolved);
 
-            string key = resolved + "|" + item.Type + "|" + item.Path + "|" + item.Name;
+            long stamp = 0;
+            try
+            {
+                string stampPath = File.Exists(resolved) ? resolved : (item.Type == "exe" && File.Exists(item.Path) ? item.Path : null);
+                if (stampPath != null) stamp = File.GetLastWriteTimeUtc(stampPath).Ticks;
+            }
+            catch { }
+            string key = resolved + "|" + stamp + "|" + item.Type + "|" + item.Path + "|" + item.Name;
             BitmapSource cached;
             if (Cache.TryGetValue(key, out cached)) return cached;
 
@@ -114,6 +121,23 @@ namespace SmartLauncher
             finally
             {
                 if (icons[0] != IntPtr.Zero) Native.DestroyIcon(icons[0]);
+            }
+
+            try
+            {
+                using (System.Drawing.Icon ico = System.Drawing.Icon.ExtractAssociatedIcon(path))
+                {
+                    if (ico != null)
+                    {
+                        BitmapSource bmp = Imaging.CreateBitmapSourceFromHIcon(
+                            ico.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        bmp.Freeze();
+                        return bmp;
+                    }
+                }
+            }
+            catch
+            {
             }
             return null;
         }

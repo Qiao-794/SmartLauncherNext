@@ -112,6 +112,14 @@ namespace SmartLauncher
             import.Click += delegate { ImportLegacy(); };
             left.Children.Add(import);
 
+            Button exportCfg = TextButton("导出配置", false);
+            exportCfg.Click += delegate { ExportConfig(); };
+            left.Children.Add(exportCfg);
+
+            Button importCfg = TextButton("导入配置", false);
+            importCfg.Click += delegate { ImportConfig(); };
+            left.Children.Add(importCfg);
+
             Button open = TextButton("打开数据目录", false);
             open.Click += delegate { OpenDataDir(); };
             left.Children.Add(open);
