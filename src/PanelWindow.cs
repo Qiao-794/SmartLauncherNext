@@ -26,6 +26,9 @@ namespace SmartLauncher
         private AppConfig _config;
         private bool _pinned;
         private readonly StackPanel _list;
+        private readonly ScrollViewer _scroll;
+        private readonly Border _topFade;
+        private readonly Border _bottomFade;
         private readonly Border _panel;
         private readonly Grid _content;
         private readonly Border _status;
@@ -120,17 +123,27 @@ namespace SmartLauncher
             _content = new Grid();
             _content.RenderTransformOrigin = new Point(0.5, 0.5);
             _panel.Child = _content;
-            ScrollViewer scroll = new ScrollViewer();
-            scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
-            scroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
-            scroll.Focusable = false;
-            scroll.Padding = new Thickness(0);
-            scroll.Background = Brushes.Transparent;
-            _content.Children.Add(scroll);
+
+            // 不显示滚动条，但仍可滚（滚轮 + 方向键）
+            _scroll = new ScrollViewer();
+            _scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
+            _scroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+            _scroll.Focusable = false;
+            _scroll.Padding = new Thickness(0);
+            _scroll.Background = Brushes.Transparent;
+            _scroll.ScrollChanged += OnScrollChanged;
+            _content.Children.Add(_scroll);
 
             _list = new StackPanel();
             _list.Margin = new Thickness(4.5, 5.5, 4.5, 5.5);
-            scroll.Content = _list;
+            _scroll.Content = _list;
+
+            // 上下边缘渐隐：提示还能滚，但不占宽度
+            _topFade = MakeFade(true);
+            _content.Children.Add(_topFade);
+            _bottomFade = MakeFade(false);
+            _content.Children.Add(_bottomFade);
+            UpdateFadeBrushes();
 
             _statusText = new TextBlock();
             _statusText.FontSize = 10.5;
@@ -219,6 +232,7 @@ namespace SmartLauncher
             {
                 UpdateLayout();
                 PositionNearCursor();
+                UpdateFadeState();
             }
         }
 
@@ -260,6 +274,7 @@ namespace SmartLauncher
             SetState(PanelState.Visible);
             Log.Write("ShowPanel after Show wpfVisible=" + IsVisible);
             UpdateLayout();
+            UpdateFadeState();
             InstallHooks();
             _hoverTimer.Stop();
             _hoverTimer.Start();
@@ -718,6 +733,58 @@ namespace SmartLauncher
                 _hasCursorPoint = false;
             }
         }
+
+        private Border MakeFade(bool top)
+        {
+            Border b = new Border();
+            b.Height = top ? 12 : 22;
+            b.VerticalAlignment = top ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+            b.HorizontalAlignment = HorizontalAlignment.Stretch;
+            b.IsHitTestVisible = false;
+            b.Opacity = 0;
+            return b;
+        }
+
+        private void UpdateFadeBrushes()
+        {
+            if (_topFade == null || _bottomFade == null) return;
+            Color c = Theme.PanelSolidBrush.Color;
+            Color clear = Color.FromArgb(0, c.R, c.G, c.B);
+            Color solid = Color.FromArgb(255, c.R, c.G, c.B);
+
+            LinearGradientBrush topBrush = new LinearGradientBrush(solid, clear, new Point(0, 0), new Point(0, 1));
+            topBrush.Freeze();
+            _topFade.Background = topBrush;
+
+            LinearGradientBrush bottomBrush = new LinearGradientBrush(clear, solid, new Point(0, 0), new Point(0, 1));
+            bottomBrush.Freeze();
+            _bottomFade.Background = bottomBrush;
+        }
+
+        private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_scroll != null)
+                Log.Write("scroll " + _scroll.VerticalOffset.ToString("0") + "/" + _scroll.ScrollableHeight.ToString("0"));
+            UpdateFadeState();
+        }
+
+        private void UpdateFadeState()
+        {
+            if (_scroll == null || _topFade == null || _bottomFade == null) return;
+
+            double offset = _scroll.VerticalOffset;
+            double max = _scroll.ScrollableHeight;
+            double top = offset > 1 ? 1 : 0;
+            double bottom = offset < max - 1 ? 1 : 0;
+
+            if (!_topFade.Opacity.Equals(top)) _topFade.Opacity = top;
+            if (!_bottomFade.Opacity.Equals(bottom))
+            {
+                _bottomFade.Opacity = bottom;
+                Log.Write("scroll offset=" + offset.ToString("0") + " max=" + max.ToString("0") + " more=" + (bottom > 0));
+            }
+        }
+
         private bool OnGlobalKey(int vk)
         {
             if (!IsVisible || IsHiding) return false;
@@ -858,10 +925,12 @@ namespace SmartLauncher
             _panel.Background = Theme.PanelSolidBrush;
             _panel.BorderBrush = Theme.PanelBorderBrush;
             BuildWindowRows();
+            UpdateFadeBrushes();
             if (IsVisible)
             {
                 UpdateLayout();
                 PositionNearCursor();
+                UpdateFadeState();
             }
         }
 

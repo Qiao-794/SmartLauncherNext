@@ -49,35 +49,36 @@ namespace SmartLauncher
         /// Icon of a live window: window icon first (works for UWP frames), then the
         /// owner process image, then a generated letter tile.
         /// </summary>
-        public static BitmapSource GetForWindow(IntPtr hwnd, string exePath, string title)
+        public static BitmapSource GetForWindow(IntPtr hwnd, string exePath, string title, bool cheap)
         {
             string key = "win|" + hwnd.ToInt64().ToString("x") + "|" + (exePath ?? "");
             BitmapSource cached;
             if (Cache.TryGetValue(key, out cached)) return cached;
 
             BitmapSource img = null;
-            try
+            if (!cheap)
             {
-                IntPtr result;
-                IntPtr hIcon = IntPtr.Zero;
-                if (SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_BIG, IntPtr.Zero, SMTO_ABORTIFHUNG, 300, out result) != IntPtr.Zero)
-                    hIcon = result;
-                if (hIcon == IntPtr.Zero && SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 300, out result) != IntPtr.Zero)
-                    hIcon = result;
-                if (hIcon == IntPtr.Zero && SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_SMALL, IntPtr.Zero, SMTO_ABORTIFHUNG, 300, out result) != IntPtr.Zero)
-                    hIcon = result;
-                if (hIcon == IntPtr.Zero)
-                    hIcon = GetClassLongPtr(hwnd, GCLP_HICON);
-
-                if (hIcon != IntPtr.Zero)
+                try
                 {
-                    BitmapSource bmp = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                    bmp.Freeze();
-                    img = bmp;
+                    IntPtr result;
+                    IntPtr hIcon = IntPtr.Zero;
+                    if (SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_BIG, IntPtr.Zero, SMTO_ABORTIFHUNG, 60, out result) != IntPtr.Zero)
+                        hIcon = result;
+                    if (hIcon == IntPtr.Zero && SendMessageTimeout(hwnd, WM_GETICON, (IntPtr)ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 60, out result) != IntPtr.Zero)
+                        hIcon = result;
+                    if (hIcon == IntPtr.Zero)
+                        hIcon = GetClassLongPtr(hwnd, GCLP_HICON);
+
+                    if (hIcon != IntPtr.Zero)
+                    {
+                        BitmapSource bmp = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        bmp.Freeze();
+                        img = bmp;
+                    }
                 }
-            }
-            catch
-            {
+                catch
+                {
+                }
             }
 
             if (img == null && !string.IsNullOrEmpty(exePath) && File.Exists(exePath))

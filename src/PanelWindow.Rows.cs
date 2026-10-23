@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,7 +12,8 @@ namespace SmartLauncher
 {
     public partial class PanelWindow
     {
-        private const int MaxWindowRows = 8;
+        private const int MaxVisibleRows = 14;
+        private const int MaxEnumRows = 60;
 
         private void BuildWindowRows()
         {
@@ -22,7 +24,8 @@ namespace SmartLauncher
             uint selfPid = (uint)Process.GetCurrentProcess().Id;
             IntPtr foreground = Native.GetForegroundWindow();
             int total;
-            List<WindowInfo> windows = WindowList.Enumerate(selfPid, MaxWindowRows, out total);
+            Stopwatch sw = Stopwatch.StartNew();
+            List<WindowInfo> windows = WindowList.Enumerate(selfPid, MaxEnumRows, out total);
             Log.Write("windows rows=" + windows.Count + " total=" + total);
             Log.Write("windows filter: " + WindowList.LastDiagnostics);
             try
@@ -38,6 +41,9 @@ namespace SmartLauncher
             catch
             {
             }
+
+            int fit = FitVisibleRows();
+            int visible = Math.Min(windows.Count, Math.Min(MaxVisibleRows, fit));
 
             double contentHeight = 13;
             if (windows.Count == 0)
@@ -55,31 +61,58 @@ namespace SmartLauncher
                 int index = 0;
                 foreach (WindowInfo info in windows)
                 {
-                    RowView row = BuildWindowRow(info, index, info.Hwnd == foreground);
+                    bool cheapIcon = index >= 20 || sw.ElapsedMilliseconds > 250;
+                    RowView row = BuildWindowRow(info, index, info.Hwnd == foreground, cheapIcon);
                     index++;
                     _list.Children.Add(row.Container);
                     _rows.Add(row);
-                    contentHeight += 29;
                 }
-
-                if (total > windows.Count)
-                {
-                    TextBlock more = new TextBlock();
-                    more.Text = "还有 " + (total - windows.Count) + " 个窗口";
-                    more.FontSize = 9.5;
-                    more.Foreground = Theme.TextSecondaryBrush;
-                    more.Margin = new Thickness(12, 3, 12, 3);
-                    _list.Children.Add(more);
-                    contentHeight += 19;
-                }
+                contentHeight += 29 * visible;
             }
 
             Height = contentHeight + ShadowMargin * 2;
+            Log.Write("windows built rows=" + _rows.Count + " visible=" + visible + " fit=" + fit
+                + " height=" + Height + " in " + sw.ElapsedMilliseconds + "ms");
             _selected = _rows.Count > 1 ? 1 : (_rows.Count == 1 ? 0 : -1);
             UpdateSelection();
         }
 
-        private RowView BuildWindowRow(WindowInfo info, int index, bool isForeground)
+        /// <summary>
+        /// 面板最多能显示多少行：受 14 行上限和光标所在显示器的工作区高度双重限制。
+        /// </summary>
+        private int FitVisibleRows()
+        {
+            double workHeight = 800;
+            try
+            {
+                Native.POINT pt;
+                if (Native.GetCursorPos(out pt))
+                {
+                    IntPtr mon = Native.MonitorFromPoint(pt, 2);
+                    Native.MONITORINFO mi = new Native.MONITORINFO();
+                    mi.cbSize = Marshal.SizeOf(typeof(Native.MONITORINFO));
+                    if (mon != IntPtr.Zero && Native.GetMonitorInfo(mon, ref mi))
+                    {
+                        double scale = 1.0;
+                        uint dpiX, dpiY;
+                        if (Native.GetDpiForMonitor(mon, Native.MDT_EFFECTIVE_DPI, out dpiX, out dpiY) == 0 && dpiX > 0)
+                            scale = dpiX / 96.0;
+                        workHeight = (mi.rcWork.Bottom - mi.rcWork.Top) / scale;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            double available = workHeight - 30 - ShadowMargin * 2 - 13;
+            int rows = (int)Math.Floor(available / 29.0);
+            if (rows < 4) rows = 4;
+            if (rows > MaxVisibleRows) rows = MaxVisibleRows;
+            return rows;
+        }
+
+        private RowView BuildWindowRow(WindowInfo info, int index, bool isForeground, bool cheapIcon)
         {
             RowView row = new RowView();
             row.Hwnd = info.Hwnd;
@@ -119,7 +152,7 @@ namespace SmartLauncher
             icon.Stretch = Stretch.Uniform;
             icon.HorizontalAlignment = HorizontalAlignment.Center;
             icon.VerticalAlignment = VerticalAlignment.Center;
-            icon.Source = IconService.GetForWindow(info.Hwnd, info.ExePath, info.Title);
+            icon.Source = IconService.GetForWindow(info.Hwnd, info.ExePath, info.Title, cheapIcon);
             RenderOptions.SetBitmapScalingMode(icon, BitmapScalingMode.HighQuality);
             Grid.SetColumn(icon, 0);
             grid.Children.Add(icon);
