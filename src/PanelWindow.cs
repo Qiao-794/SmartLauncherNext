@@ -274,6 +274,13 @@ namespace SmartLauncher
             SetState(PanelState.Visible);
             Log.Write("ShowPanel after Show wpfVisible=" + IsVisible);
             UpdateLayout();
+            // 每次唤出都从顶部开始，不继承上次的滚动位置
+            if (_scroll != null)
+            {
+                _scroll.ScrollToTop();
+                _scroll.UpdateLayout();
+                Log.Write("scroll reset -> " + _scroll.VerticalOffset.ToString("0"));
+            }
             UpdateFadeState();
             InstallHooks();
             _hoverTimer.Stop();
@@ -742,6 +749,8 @@ namespace SmartLauncher
             b.HorizontalAlignment = HorizontalAlignment.Stretch;
             b.IsHitTestVisible = false;
             b.Opacity = 0;
+            // 跟随面板 10px 圆角（内容区在 1px 边框内，内圆角按 9 算）
+            b.CornerRadius = top ? new CornerRadius(9, 9, 0, 0) : new CornerRadius(0, 0, 9, 9);
             return b;
         }
 
