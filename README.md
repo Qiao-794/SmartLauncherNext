@@ -64,7 +64,12 @@ Quicker 动作保持原样即可（主路径现在已经存在）：
 
 ## 测试
 
-- `tests\smoke.ps1`：启动 → 显示（并检查面板内容非空）→ Esc → 设置 → 关闭，失败返回 1。
+```powershell
+powershell -ExecutionPolicy Bypass -File tests\smoke.ps1
+```
+
+覆盖：面板显示、键盘钩子、窗口行数/可见行数/高度公式、滚轮滚到底、重新打开回到顶部、`Esc` 关闭、设置窗口开关、`debug.log` 无异常。默认会临时开 16 个控制台窗口保证列表可滚动，可用 `-SpawnWindows 0` 跳过；测试产物在 `.smoke\`（已加入 .gitignore）。
+
 - `tests\stability-test.ps1`：20 轮采样，需要先准备测试目录；脚本会把结果写入 CSV。
 - `tests\stability-report.md`：v1.2 的 20 轮结果、汇总和图表；原始数据在 `tests\stability-results.csv`。
 
@@ -77,6 +82,16 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
 源文件在 `src\`，输出在 `out\`。
+
+## 打包
+
+```powershell
+powershell -ExecutionPolicy Bypass -File package.ps1
+```
+
+一条命令完成：构建 → 生成 git bundle → 组装 `deploy\` → 打源码备份 → 汇总为 `SmartLauncherNext-migration-<version>.zip`，最后打印 exe 与 zip 的 SHA256。
+
+常用参数：`-Version 1.3.4`（默认读 `src\VersionInfo.cs`）、`-OutputDir`、`-DeploySource`（取 `launcher.json` / `Cache` 的目录）、`-SkipBuild`、`-KeepStaging`。
 
 ## 常见问题
 
