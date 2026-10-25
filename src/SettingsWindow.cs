@@ -57,6 +57,7 @@ namespace SmartLauncher
             AllowsTransparency = false;
             Background = Theme.WindowSolidBrush;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            Ui.ApplyAppIcon(this);
             ShowInTaskbar = true;
             FontFamily = Theme.UiFont;
             SnapsToDevicePixels = true;
