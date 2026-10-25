@@ -37,6 +37,11 @@ if ([string]::IsNullOrWhiteSpace($Repository)) {
     }
 }
 
+# 环境变量里的仓库名同样可能带换行
+if (-not [string]::IsNullOrWhiteSpace($Repository)) {
+    $Repository = ($Repository -replace '[\r\n\t ]', '')
+}
+
 if (!(Test-Path $exe)) {
     Write-Host "Building SmartLauncherNext..." -ForegroundColor Cyan
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $buildScript
@@ -141,6 +146,9 @@ if ($Target -eq 'GitHub') {
     if ([string]::IsNullOrWhiteSpace($Token)) {
         throw "GitHub upload requires GITHUB_TOKEN or GH_TOKEN in the environment"
     }
+
+    # 从终端/文件粘贴 token 时常带上 CRLF 或空格，直接拼进 header 会报 "invalid CRLF"
+    $Token = ($Token -replace '[\r\n\t ]', '')
 
     $headers = @{
         Authorization          = "Bearer $Token"
