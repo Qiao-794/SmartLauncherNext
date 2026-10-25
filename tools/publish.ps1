@@ -157,7 +157,10 @@ if ($Target -eq 'GitHub') {
         $release = Invoke-RestMethod -Uri "$api/releases" -Method Post -Headers $headers -Body $body -ContentType 'application/json'
     }
 
-    $uploadUrl = $release.upload_url -replace '\{.*$', ''
+    if ($release -is [System.Array]) { $release = $release[0] }
+    if ($release.id -eq $null) { throw "Release ID missing; cannot upload assets." }
+    $uploadUrl = "https://uploads.github.com/repos/$Repository/releases/$($release.id)/assets"
+    Write-Host "Release id: $($release.id)"
     foreach ($asset in @($zipPath, $latestPath)) {
         $name = [System.IO.Path]::GetFileName($asset)
         if ($name -like '*.zip') { $contentType = 'application/zip' } else { $contentType = 'application/json' }
