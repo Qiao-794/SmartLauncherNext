@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.5 - 2026-10-25
+
+- 合并 GitHub 线上的发布/自动更新工具：`tools/publish.ps1`、`tools/update.ps1`、`tools/update.cmd`、`SYNC.md`、`latest.json`
+- 合并窗口图标修复：面板与设置窗口改用 exe 关联图标（`Ui.ApplyAppIcon`）
+- 保留 1.3.3（14 行 + 滚动 + 边缘渐隐）与 1.3.4（圆角、每次唤出回顶部）的全部改动
+
 ## 1.3.4 - 2026-10-23
 
 - 修复上下渐隐块的直角破坏面板圆角：渐隐 Border 按内圆角 9px 裁切

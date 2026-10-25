@@ -7,10 +7,10 @@ https://github.com/Qiao-794/SmartLauncherNext
 ```
 
 - Branch: `main`
-- Source version: `1.3.2`
+- Source version: `1.3.5`
 - Build: Windows `.NET Framework 4.8` + `build.ps1`
 - Deployment: `D:\Tools\SmartLauncher_Next_Lite`
-- Release: `v1.3.2`
+- Release: `v1.3.5`
 - Latest JSON: `https://raw.githubusercontent.com/Qiao-794/SmartLauncherNext/main/latest.json`
 
 ## Prompt to paste into the AI assistant on the other PC
@@ -26,7 +26,7 @@ https://github.com/Qiao-794/SmartLauncherNext
 要求：
 1. 如果本地没有源码仓库，git clone 到源码目录。
 2. 如果已有仓库，git pull --ff-only。
-3. 确认 src\VersionInfo.cs 是 1.3.2。
+3. 确认 src\VersionInfo.cs 是 1.3.5。
 4. 运行 build.ps1。
 5. 部署时只覆盖：
    - SmartLauncherNext.exe
