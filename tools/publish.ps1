@@ -52,6 +52,7 @@ $stageExe = Join-Path $stage 'SmartLauncherNext.exe'
 Copy-Item $exe $stageExe -Force
 Copy-Item $readme (Join-Path $stage 'README.md') -Force
 Copy-Item (Join-Path $PSScriptRoot 'update.ps1') (Join-Path $stage 'update.ps1') -Force
+Copy-Item (Join-Path $PSScriptRoot 'update.cmd') (Join-Path $stage 'update.cmd') -Force
 [System.IO.File]::WriteAllText(
     (Join-Path $stage 'version.txt'),
     $Version,
