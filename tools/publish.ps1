@@ -169,7 +169,17 @@ if ($Target -eq 'GitHub') {
 
         $uploadUri = "$uploadUrl?name=$([System.Uri]::EscapeDataString($name))"
         Write-Host "Uploading $name ..."
-        Invoke-WebRequest -Uri $uploadUri -Method Post -Headers $headers -InFile $asset -ContentType $contentType -UseBasicParsing | Out-Null
+        try {
+            $bytes = [System.IO.File]::ReadAllBytes($asset)
+            Invoke-RestMethod -Uri $uploadUri -Method Post -Headers $headers -Body $bytes -ContentType $contentType | Out-Null
+        }
+        catch {
+            $detail = $_.Exception.Message
+            if ($_.ErrorDetails -ne $null -and $_.ErrorDetails.Message) {
+                $detail += "`n" + $_.ErrorDetails.Message
+            }
+            throw "Upload failed for $name : $detail"
+        }
     }
 
     $contentsApi = "$api/contents/latest.json"
