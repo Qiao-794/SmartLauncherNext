@@ -24,6 +24,19 @@ $exe = Join-Path $repoRoot 'out\SmartLauncherNext.exe'
 $buildScript = Join-Path $repoRoot 'build.ps1'
 $readme = Join-Path $repoRoot 'README.md'
 
+# -Repository 未指定时，从 origin 的 URL 推断 owner/repo（非 Actions 环境里省得手填）
+if ([string]::IsNullOrWhiteSpace($Repository)) {
+    try {
+        $remote = (& git -C $repoRoot remote get-url origin 2>$null | Select-Object -First 1)
+        if ($remote -match 'github\.com[:/](?<owner>[^/]+)/(?<repo>[^/]+?)(?:\.git)?/?$') {
+            $Repository = $Matches['owner'] + '/' + $Matches['repo']
+            Write-Host "Repository: $Repository (from origin)" -ForegroundColor DarkGray
+        }
+    }
+    catch {
+    }
+}
+
 if (!(Test-Path $exe)) {
     Write-Host "Building SmartLauncherNext..." -ForegroundColor Cyan
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $buildScript
