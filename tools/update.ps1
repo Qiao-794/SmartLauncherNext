@@ -141,7 +141,7 @@ try {
 
         $installedCmd = Join-Path $InstallDir 'update.cmd'
         if (!(Test-Path $installedCmd)) {
-            $cmdText = "@echo off`r`nsetlocal`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0update.ps1`" -Show`r`nexit /b %errorlevel%`r`n"
+            $cmdText = "@echo off`r`nsetlocal`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0update.ps1`" %*`r`nexit /b %errorlevel%`r`n"
             [System.IO.File]::WriteAllText($installedCmd, $cmdText, (New-Object System.Text.ASCIIEncoding))
         }
 
