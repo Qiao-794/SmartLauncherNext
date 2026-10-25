@@ -2,10 +2,12 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Interop;
 using System.Windows.Data;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 
 namespace SmartLauncher
 {
@@ -249,6 +251,24 @@ namespace SmartLauncher
             return e;
         }
 
+        public static void ApplyAppIcon(Window window)
+        {
+            try
+            {
+                string exe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                using (System.Drawing.Icon ico = System.Drawing.Icon.ExtractAssociatedIcon(exe))
+                {
+                    if (ico == null) return;
+                    BitmapSource source = Imaging.CreateBitmapSourceFromHIcon(
+                        ico.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    source.Freeze();
+                    window.Icon = source;
+                }
+            }
+            catch
+            {
+            }
+        }
         public static TextBlock Label(string text, double size, Brush brush)
         {
             TextBlock t = new TextBlock();

@@ -85,6 +85,7 @@ namespace SmartLauncher
             SizeToContent = SizeToContent.Manual;
             WindowStartupLocation = WindowStartupLocation.Manual;
             Title = "SmartLauncherNextPanel";
+            Ui.ApplyAppIcon(this);
             SnapsToDevicePixels = true;
             UseLayoutRounding = true;
             FontFamily = Theme.UiFont;
