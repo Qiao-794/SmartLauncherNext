@@ -193,7 +193,9 @@ if ($Target -eq 'GitHub') {
             Invoke-RestMethod -Uri "$api/releases/assets/$($old.id)" -Method Delete -Headers $headers | Out-Null
         }
 
-        $uploadUri = "$uploadUrl?name=$([System.Uri]::EscapeDataString($name))"
+        # 注意：不能写成 "$uploadUrl?name=..."，PowerShell 会把 "$uploadUrl?name" 当成变量名
+        $uploadUri = $uploadUrl + '?name=' + [System.Uri]::EscapeDataString($name)
+        try { [void][System.Uri]$uploadUri } catch { throw "Invalid upload URI: [$uploadUri]" }
         Write-Host "Uploading $name ..."
         try {
             $bytes = [System.IO.File]::ReadAllBytes($asset)
