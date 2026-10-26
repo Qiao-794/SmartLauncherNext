@@ -52,9 +52,20 @@ namespace SmartLauncher
                 empty.Text = "没有其他窗口";
                 empty.FontSize = 11.5;
                 empty.Foreground = Theme.TextSecondaryBrush;
-                empty.Margin = new Thickness(12, 14, 12, 14);
+                empty.Margin = new Thickness(12, 14, 12, 6);
                 _list.Children.Add(empty);
-                contentHeight += 45;
+                contentHeight += 39;
+
+                if (_keyMap.Count > 0)
+                {
+                    TextBlock hint = new TextBlock();
+                    hint.Text = "按字母键可直接启动配置项";
+                    hint.FontSize = 9.5;
+                    hint.Foreground = Theme.TextSecondaryBrush;
+                    hint.Margin = new Thickness(12, 0, 12, 14);
+                    _list.Children.Add(hint);
+                    contentHeight += 20;
+                }
             }
             else
             {
@@ -208,14 +219,35 @@ namespace SmartLauncher
 
             // 必须仍在前台时切换，否则 SetForegroundWindow 会被系统拒绝
             IntPtr hwnd = row.Hwnd;
+
+            if (!WindowList.Exists(hwnd))
+            {
+                ShowStatus("该窗口已关闭");
+                RefreshRowsInPlace();
+                return;
+            }
+
             if (WindowList.Activate(hwnd))
             {
                 HidePanel(false);
+                return;
             }
-            else
+
+            // 切换失败后再确认一次：窗口没了就刷新列表，还活着多半是权限问题
+            if (!WindowList.Exists(hwnd))
             {
-                ShowStatus("无法切换到该窗口");
+                ShowStatus("该窗口已关闭");
+                RefreshRowsInPlace();
+                return;
             }
+            ShowStatus("无法切换（可能需要管理员权限）");
+        }
+
+        private void RefreshRowsInPlace()
+        {
+            BuildWindowRows();
+            UpdateLayout();
+            UpdateFadeState();
         }
 
         private class RowView

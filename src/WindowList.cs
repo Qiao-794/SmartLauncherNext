@@ -55,6 +55,9 @@ namespace SmartLauncher
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
 
         [DllImport("user32.dll")]
+        private static extern bool IsWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
         private static extern bool IsIconic(IntPtr hWnd);
 
         [DllImport("user32.dll")]
@@ -126,6 +129,11 @@ namespace SmartLauncher
                 list.Add(info);
             }
             return list;
+        }
+
+        public static bool Exists(IntPtr hwnd)
+        {
+            return hwnd != IntPtr.Zero && IsWindow(hwnd);
         }
 
         public static bool Activate(IntPtr hwnd)

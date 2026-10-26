@@ -46,4 +46,12 @@ if (!(Test-Path $data)) {
         Write-Host 'legacy config + icons copied to out'
     }
 }
-Write-Host ("built: " + (Join-Path $outDir 'SmartLauncherNext.exe'))
+
+# 产物版本文件：部署/更新脚本与版本号校验都依赖它
+$exePath = Join-Path $outDir 'SmartLauncherNext.exe'
+$ver = (Get-Item $exePath).VersionInfo.ProductVersion
+if ([string]::IsNullOrWhiteSpace($ver)) { throw 'cannot read exe product version' }
+[System.IO.File]::WriteAllText((Join-Path $outDir 'version.txt'), $ver, (New-Object System.Text.UTF8Encoding($false)))
+
+Write-Host ("built: " + $exePath)
+Write-Host ("version: " + $ver)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.6 - 2026-10-26
+
+- 更新脚本加固：按路径停进程、update.log、-Rollback、version.txt 与 exe 版本交叉校验、并发锁、安装后校验,新增 tests\update-smoke.ps1：file:// 本地假源端到端验证更新、幂等与回滚,新增 tools\release.ps1：一条命令完成版本号、CHANGELOG、构建、测试、打包、部署、推送,build.ps1 现在产出 out\version.txt,窗口关闭或激活失败时刷新列表并给出明确提示；空态补充按键启动提示
+
 ## 1.3.5 - 2026-10-25
 
 - 合并 GitHub 线上的发布/自动更新工具：`tools/publish.ps1`、`tools/update.ps1`、`tools/update.cmd`、`SYNC.md`、`latest.json`
