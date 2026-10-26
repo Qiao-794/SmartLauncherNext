@@ -83,6 +83,9 @@ namespace SmartLauncher
         [DllImport("user32.dll")]
         private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, EnumMonitorsProc callback, IntPtr data);
 
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int index);
+
         [DllImport("dwmapi.dll")]
         private static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out int value, int size);
 
@@ -95,7 +98,7 @@ namespace SmartLauncher
         private static int _skipCloaked;
         private static int _skipTitle;
 
-        public static List<WindowInfo> Enumerate(uint selfPid, int max, out int total)
+        public static List<WindowInfo> Enumerate(uint selfPid, int max, List<string> hidden, out int total)
         {
             List<IntPtr> handles = new List<IntPtr>();
             List<string> titles = new List<string>();
@@ -108,7 +111,7 @@ namespace SmartLauncher
 
             EnumWindows(delegate(IntPtr h, IntPtr l)
             {
-                if (!IsCandidate(h, selfPid)) return true;
+                if (!IsCandidate(h, selfPid, hidden)) return true;
 
                 string title = TitleOf(h);
                 if (title.Length == 0)
@@ -267,7 +270,7 @@ namespace SmartLauncher
             }
         }
 
-        private static bool IsCandidate(IntPtr h, uint selfPid)
+        private static bool IsCandidate(IntPtr h, uint selfPid, List<string> hidden)
         {
             if (h == IntPtr.Zero) return false;
             if (!IsWindowVisible(h)) return false;
@@ -302,7 +305,36 @@ namespace SmartLauncher
             GetWindowThreadProcessId(h, out pid);
             if (pid == 0 || pid == selfPid) return false;
 
+            if (hidden != null && hidden.Count > 0)
+            {
+                string processName = ProcessInfo(pid)[0];
+                if (IsHiddenProcess(processName, hidden)) return false;
+            }
+
             return true;
+        }
+
+        private static bool IsHiddenProcess(string processName, List<string> hidden)
+        {
+            if (string.IsNullOrEmpty(processName)) return false;
+            string name = processName.Trim();
+            if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name.Substring(0, name.Length - 4);
+
+            for (int i = 0; i < hidden.Count; i++)
+            {
+                string rule = hidden[i];
+                if (string.IsNullOrEmpty(rule)) continue;
+                rule = rule.Trim();
+                if (rule.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) rule = rule.Substring(0, rule.Length - 4);
+                if (string.Equals(rule, name, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        public static int MonitorCount()
+        {
+            int count = GetSystemMetrics(80); // SM_CMONITORS
+            return count > 0 ? count : 1;
         }
 
         private static string TitleOf(IntPtr h)

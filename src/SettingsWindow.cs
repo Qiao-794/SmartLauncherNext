@@ -34,6 +34,7 @@ namespace SmartLauncher
         private readonly TextBlock _countText;
         private readonly TextBlock _statusText;
         private readonly CheckBox _idleBox;
+        private TextBox _hiddenBox;
         private TextBox _filterBox;
         private RowEditor _focusedEditor;
         private RowEditor _dragEditor;
@@ -131,6 +132,15 @@ namespace SmartLauncher
             _idleBox.Checked += delegate { _dirty = true; };
             _idleBox.Unchecked += delegate { _dirty = true; };
 
+            _hiddenBox = new TextBox();
+            _hiddenBox.Style = Ui.TextBoxStyle();
+            _hiddenBox.Width = 150;
+            _hiddenBox.MinHeight = 26;
+            _hiddenBox.FontSize = 11.5;
+            _hiddenBox.VerticalAlignment = VerticalAlignment.Center;
+            _hiddenBox.ToolTip = "不进窗口列表的进程名，逗号分隔；例如 Wallpaper, IME";
+            _hiddenBox.TextChanged += delegate { _dirty = true; };
+
             UIElement footer = BuildFooter();
             Grid.SetRow(footer, 4);
             grid.Children.Add(footer);
@@ -139,6 +149,7 @@ namespace SmartLauncher
 
             LoadRows();
             _idleBox.IsChecked = _working.IdleExitMinutes > 0;
+            _hiddenBox.Text = string.Join(", ", _working.HiddenProcesses);
             _dirty = false;
 
             Closing += OnClosing;
@@ -1013,12 +1024,33 @@ namespace SmartLauncher
             return false;
         }
 
+        private static List<string> ParseHiddenProcesses(string text)
+        {
+            List<string> list = new List<string>();
+            if (string.IsNullOrWhiteSpace(text)) return list;
+
+            string[] parts = text.Split(new char[] { ',', ';', '，', '；' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string part in parts)
+            {
+                string value = part.Trim();
+                if (value.Length == 0) continue;
+                bool exists = false;
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (string.Equals(list[i], value, StringComparison.OrdinalIgnoreCase)) { exists = true; break; }
+                }
+                if (!exists) list.Add(value);
+            }
+            return list;
+        }
+
         private AppConfig BuildConfig()
         {
             AppConfig result = new AppConfig();
             result.HideWhenInactive = _working.HideWhenInactive;
             result.IdleExitMinutes = _idleBox.IsChecked == true ? 5 : 0;
             result.StartWithWindows = _working.StartWithWindows;
+            result.HiddenProcesses = ParseHiddenProcesses(_hiddenBox.Text);
 
             Dictionary<string, Category> map = new Dictionary<string, Category>(StringComparer.OrdinalIgnoreCase);
             foreach (RowEditor ed in _editors)

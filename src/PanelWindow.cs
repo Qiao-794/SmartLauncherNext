@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -885,12 +887,15 @@ namespace SmartLauncher
                 if (WindowList.ToggleTopMost(row.Hwnd)) DelayedRefresh();
                 else ShowStatus("无法修改置顶状态");
             }));
-            stack.Children.Add(MenuRow("移到下一块屏", delegate
+            if (WindowList.MonitorCount() > 1)
             {
-                popup.IsOpen = false;
-                if (WindowList.MoveToNextMonitor(row.Hwnd)) HidePanel(false);
-                else ShowStatus("只有一块屏幕，或无法移动");
-            }));
+                stack.Children.Add(MenuRow("移到下一块屏", delegate
+                {
+                    popup.IsOpen = false;
+                    if (WindowList.MoveToNextMonitor(row.Hwnd)) HidePanel(false);
+                    else ShowStatus("无法移动该窗口");
+                }));
+            }
             stack.Children.Add(MenuRow("复制标题", delegate
             {
                 popup.IsOpen = false;
@@ -904,10 +909,67 @@ namespace SmartLauncher
                     ShowStatus("复制失败");
                 }
             }));
+            stack.Children.Add(MenuRow("复制程序路径", delegate
+            {
+                popup.IsOpen = false;
+                CopyProcessPath(row);
+            }));
+            stack.Children.Add(MenuRow("打开所在文件夹", delegate
+            {
+                popup.IsOpen = false;
+                OpenProcessFolder(row);
+            }));
 
             box.Child = stack;
             popup.Child = box;
             popup.IsOpen = true;
+        }
+
+        private static string GetRowExePath(RowView row)
+        {
+            if (row == null) return null;
+            if (!string.IsNullOrEmpty(row.ExePath) && File.Exists(row.ExePath)) return row.ExePath;
+            return null;
+        }
+
+        private void CopyProcessPath(RowView row)
+        {
+            string path = GetRowExePath(row);
+            if (string.IsNullOrEmpty(path))
+            {
+                ShowStatus("拿不到程序路径（可能需要管理员权限）");
+                return;
+            }
+            try
+            {
+                Clipboard.SetText(path);
+                ShowStatus("已复制程序路径");
+            }
+            catch
+            {
+                ShowStatus("复制失败");
+            }
+        }
+
+        private void OpenProcessFolder(RowView row)
+        {
+            string path = GetRowExePath(row);
+            if (string.IsNullOrEmpty(path))
+            {
+                ShowStatus("拿不到程序路径（可能需要管理员权限）");
+                return;
+            }
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"");
+                psi.UseShellExecute = true;
+                Process.Start(psi);
+                HidePanel(false);
+            }
+            catch
+            {
+                ShowStatus("无法打开所在文件夹");
+            }
         }
 
         private Popup NewMenuPopup()

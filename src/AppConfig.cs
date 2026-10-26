@@ -45,6 +45,8 @@ namespace SmartLauncher
         public List<Category> Categories { get; set; }
         public int IdleExitMinutes { get; set; }
         public bool StartWithWindows { get; set; }
+        /// <summary>不进窗口列表的进程名（大小写不敏感，可带或不带 .exe）</summary>
+        public List<string> HiddenProcesses { get; set; }
 
         public AppConfig()
         {
@@ -53,6 +55,7 @@ namespace SmartLauncher
             Categories = new List<Category>();
             IdleExitMinutes = 5;
             StartWithWindows = false;
+            HiddenProcesses = new List<string>();
         }
     }
 
@@ -249,6 +252,16 @@ namespace SmartLauncher
             if (c.SchemaVersion <= 0) c.SchemaVersion = 2;
             if (c.Categories == null) c.Categories = new List<Category>();
             if (c.IdleExitMinutes < 0) c.IdleExitMinutes = 5;
+            if (c.HiddenProcesses == null) c.HiddenProcesses = new List<string>();
+            else
+            {
+                for (int i = c.HiddenProcesses.Count - 1; i >= 0; i--)
+                {
+                    string h = c.HiddenProcesses[i];
+                    if (string.IsNullOrWhiteSpace(h)) c.HiddenProcesses.RemoveAt(i);
+                    else c.HiddenProcesses[i] = h.Trim();
+                }
+            }
             foreach (Category cat in c.Categories)
             {
                 if (cat == null) continue;

@@ -232,6 +232,22 @@ namespace SmartLauncher
             g.Children.Add(_countText);
             Grid.SetColumn(_idleBox, 1);
             g.Children.Add(_idleBox);
+
+            StackPanel hiddenPanel = new StackPanel();
+            hiddenPanel.Orientation = Orientation.Horizontal;
+            hiddenPanel.VerticalAlignment = VerticalAlignment.Center;
+            hiddenPanel.Margin = new Thickness(16, 0, 0, 0);
+            TextBlock hiddenLabel = new TextBlock();
+            hiddenLabel.Text = "隐藏进程";
+            hiddenLabel.FontSize = 11.5;
+            hiddenLabel.Foreground = Theme.TextSecondaryBrush;
+            hiddenLabel.VerticalAlignment = VerticalAlignment.Center;
+            hiddenLabel.Margin = new Thickness(0, 0, 6, 0);
+            hiddenPanel.Children.Add(hiddenLabel);
+            hiddenPanel.Children.Add(_hiddenBox);
+            Grid.SetColumn(hiddenPanel, 2);
+            g.Children.Add(hiddenPanel);
+
             Grid.SetColumn(_statusText, 3);
             g.Children.Add(_statusText);
 

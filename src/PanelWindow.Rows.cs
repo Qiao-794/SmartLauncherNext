@@ -25,7 +25,8 @@ namespace SmartLauncher
             IntPtr foreground = Native.GetForegroundWindow();
             int total;
             Stopwatch sw = Stopwatch.StartNew();
-            List<WindowInfo> windows = WindowList.Enumerate(selfPid, MaxEnumRows, out total);
+            List<string> hidden = _config != null ? _config.HiddenProcesses : null;
+            List<WindowInfo> windows = WindowList.Enumerate(selfPid, MaxEnumRows, hidden, out total);
             Log.Write("windows rows=" + windows.Count + " total=" + total);
             Log.Write("windows filter: " + WindowList.LastDiagnostics);
             try
@@ -128,6 +129,7 @@ namespace SmartLauncher
             RowView row = new RowView();
             row.Hwnd = info.Hwnd;
             row.Title = info.Title;
+            row.ExePath = info.ExePath;
             row.Index = index;
             row.Bg = new SolidColorBrush(Colors.Transparent);
 
@@ -255,6 +257,7 @@ namespace SmartLauncher
         {
             public IntPtr Hwnd;
             public string Title = "";
+            public string ExePath = "";
             public Border Container;
             public TextBlock Name;
             public TextBlock Meta;
