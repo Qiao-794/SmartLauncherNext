@@ -14,6 +14,7 @@ namespace SmartLauncher
         public string ExePath = "";
         public uint Pid;
         public bool Minimized;
+        public bool TopMost;
     }
 
     /// <summary>
@@ -25,11 +26,16 @@ namespace SmartLauncher
         private const int GWL_EXSTYLE = -20;
         private const uint WS_EX_TOOLWINDOW = 0x00000080;
         private const uint WS_EX_APPWINDOW = 0x00040000;
+        private const uint WS_EX_TOPMOST = 0x00000008;
         private const uint GW_OWNER = 4;
         private const int DWMWA_CLOAKED = 14;
         private const int SW_RESTORE = 9;
+        private const int SW_MINIMIZE = 6;
+        private const int SW_MAXIMIZE = 3;
         private const int WM_SYSCOMMAND = 0x0112;
         private const int SC_RESTORE = 0xF120;
+        private const uint WM_CLOSE = 0x0010;
+        private const uint MONITOR_DEFAULTTONEAREST = 2;
 
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -62,6 +68,20 @@ namespace SmartLauncher
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsZoomed(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
+
+        private delegate bool EnumMonitorsProc(IntPtr hMonitor, IntPtr hdc, IntPtr rect, IntPtr data);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, EnumMonitorsProc callback, IntPtr data);
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out int value, int size);
@@ -123,6 +143,7 @@ namespace SmartLauncher
                 info.Title = titles[i];
                 info.Pid = pids[i];
                 info.Minimized = IsIconic(handles[i]);
+                info.TopMost = IsTopMost(handles[i]);
                 string[] proc = ProcessInfo(pids[i]);
                 info.ProcessName = proc[0];
                 info.ExePath = proc[1];
@@ -134,6 +155,84 @@ namespace SmartLauncher
         public static bool Exists(IntPtr hwnd)
         {
             return hwnd != IntPtr.Zero && IsWindow(hwnd);
+        }
+
+        public static bool CloseWindow(IntPtr hwnd)
+        {
+            if (!Exists(hwnd)) return false;
+            return PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+        }
+
+        public static bool Minimize(IntPtr hwnd)
+        {
+            if (!Exists(hwnd)) return false;
+            return Native.ShowWindow(hwnd, SW_MINIMIZE);
+        }
+
+        public static bool ToggleMaximize(IntPtr hwnd)
+        {
+            if (!Exists(hwnd)) return false;
+            return Native.ShowWindow(hwnd, IsZoomed(hwnd) ? SW_RESTORE : SW_MAXIMIZE);
+        }
+
+        public static bool IsTopMost(IntPtr hwnd)
+        {
+            int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            return (exStyle & WS_EX_TOPMOST) != 0;
+        }
+
+        public static bool ToggleTopMost(IntPtr hwnd)
+        {
+            if (!Exists(hwnd)) return false;
+            IntPtr after = IsTopMost(hwnd) ? new IntPtr(-2) : new IntPtr(-1);
+            return Native.SetWindowPos(hwnd, after, 0, 0, 0, 0,
+                Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+        }
+
+        /// <summary>
+        /// 把窗口移到下一块显示器并居中；只有一块屏时返回 false。
+        /// </summary>
+        public static bool MoveToNextMonitor(IntPtr hwnd)
+        {
+            if (!Exists(hwnd)) return false;
+            try
+            {
+                if (IsZoomed(hwnd)) Native.ShowWindow(hwnd, SW_RESTORE);
+
+                IntPtr current = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                List<IntPtr> monitors = new List<IntPtr>();
+                EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, delegate(IntPtr hMon, IntPtr hdc, IntPtr rect, IntPtr data)
+                {
+                    monitors.Add(hMon);
+                    return true;
+                }, IntPtr.Zero);
+                if (monitors.Count < 2) return false;
+
+                int index = monitors.IndexOf(current);
+                if (index < 0) index = 0;
+                IntPtr target = monitors[(index + 1) % monitors.Count];
+
+                Native.MONITORINFO mi = new Native.MONITORINFO();
+                mi.cbSize = Marshal.SizeOf(typeof(Native.MONITORINFO));
+                if (!Native.GetMonitorInfo(target, ref mi)) return false;
+
+                Native.RECT wr;
+                if (!Native.GetWindowRect(hwnd, out wr)) return false;
+
+                int w = wr.Right - wr.Left;
+                int h = wr.Bottom - wr.Top;
+                int workW = mi.rcWork.Right - mi.rcWork.Left;
+                int workH = mi.rcWork.Bottom - mi.rcWork.Top;
+                int x = mi.rcWork.Left + Math.Max(0, (workW - w) / 2);
+                int y = mi.rcWork.Top + Math.Max(0, (workH - h) / 2);
+
+                return Native.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0,
+                    Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static bool Activate(IntPtr hwnd)

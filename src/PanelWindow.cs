@@ -838,10 +838,79 @@ namespace SmartLauncher
         private void OnRightClick(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
-            ShowMenu();
+            RowView row = HitRow(e.GetPosition(this));
+            if (row != null)
+            {
+                SelectIndex(row.Index);
+                ShowRowMenu(row);
+            }
+            else
+            {
+                ShowMenu();
+            }
         }
 
-        private void ShowMenu()
+        /// <summary>
+        /// 行上右键：窗口操作菜单（关闭 / 最小化 / 最大化 / 置顶 / 移到副屏 / 复制标题）
+        /// </summary>
+        private void ShowRowMenu(RowView row)
+        {
+            if (row == null || row.Hwnd == IntPtr.Zero) return;
+
+            Popup popup = NewMenuPopup();
+            Border box = NewMenuBox(150);
+            StackPanel stack = new StackPanel();
+
+            stack.Children.Add(MenuRow("关闭窗口", delegate
+            {
+                popup.IsOpen = false;
+                if (WindowList.CloseWindow(row.Hwnd)) DelayedRefresh();
+                else ShowStatus("无法关闭该窗口");
+            }));
+            stack.Children.Add(MenuRow("最小化", delegate
+            {
+                popup.IsOpen = false;
+                if (WindowList.Minimize(row.Hwnd)) HidePanel(false);
+                else ShowStatus("无法最小化该窗口");
+            }));
+            stack.Children.Add(MenuRow("最大化 / 还原", delegate
+            {
+                popup.IsOpen = false;
+                if (WindowList.ToggleMaximize(row.Hwnd)) HidePanel(false);
+                else ShowStatus("无法调整该窗口");
+            }));
+            stack.Children.Add(MenuRow("置顶 / 取消置顶", delegate
+            {
+                popup.IsOpen = false;
+                if (WindowList.ToggleTopMost(row.Hwnd)) DelayedRefresh();
+                else ShowStatus("无法修改置顶状态");
+            }));
+            stack.Children.Add(MenuRow("移到下一块屏", delegate
+            {
+                popup.IsOpen = false;
+                if (WindowList.MoveToNextMonitor(row.Hwnd)) HidePanel(false);
+                else ShowStatus("只有一块屏幕，或无法移动");
+            }));
+            stack.Children.Add(MenuRow("复制标题", delegate
+            {
+                popup.IsOpen = false;
+                try
+                {
+                    Clipboard.SetText(row.Title ?? "");
+                    ShowStatus("已复制标题");
+                }
+                catch
+                {
+                    ShowStatus("复制失败");
+                }
+            }));
+
+            box.Child = stack;
+            popup.Child = box;
+            popup.IsOpen = true;
+        }
+
+        private Popup NewMenuPopup()
         {
             Popup popup = new Popup();
             popup.PlacementTarget = this;
@@ -854,15 +923,37 @@ namespace SmartLauncher
                 _suppressDeactivate = false;
                 if (!IsActive) HidePanel(false);
             };
+            return popup;
+        }
 
+        private Border NewMenuBox(double minWidth)
+        {
             Border box = new Border();
             box.Background = Theme.MenuBgBrush;
             box.BorderBrush = Theme.PanelBorderBrush;
             box.BorderThickness = new Thickness(1);
             box.CornerRadius = new CornerRadius(8);
             box.Padding = new Thickness(4);
-            box.MinWidth = 140;
+            box.MinWidth = minWidth;
+            return box;
+        }
 
+        private void DelayedRefresh()
+        {
+            DispatcherTimer timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(250);
+            timer.Tick += delegate
+            {
+                timer.Stop();
+                if (IsVisible) RefreshRowsInPlace();
+            };
+            timer.Start();
+        }
+
+        private void ShowMenu()
+        {
+            Popup popup = NewMenuPopup();
+            Border box = NewMenuBox(140);
             StackPanel stack = new StackPanel();
             stack.Children.Add(MenuRow("设置", delegate
             {

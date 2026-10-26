@@ -127,6 +127,7 @@ namespace SmartLauncher
         {
             RowView row = new RowView();
             row.Hwnd = info.Hwnd;
+            row.Title = info.Title;
             row.Index = index;
             row.Bg = new SolidColorBrush(Colors.Transparent);
 
@@ -182,7 +183,7 @@ namespace SmartLauncher
             row.Name = name;
 
             TextBlock meta = new TextBlock();
-            meta.Text = isForeground ? "当前" : (info.Minimized ? "最小化" : ShortName(info.ProcessName));
+            meta.Text = isForeground ? "当前" : (info.TopMost ? "置顶" : (info.Minimized ? "最小化" : ShortName(info.ProcessName)));
             meta.FontSize = 9;
             meta.Foreground = isForeground ? Theme.AccentBrush : Theme.TextSecondaryBrush;
             meta.VerticalAlignment = VerticalAlignment.Center;
@@ -253,6 +254,7 @@ namespace SmartLauncher
         private class RowView
         {
             public IntPtr Hwnd;
+            public string Title = "";
             public Border Container;
             public TextBlock Name;
             public TextBlock Meta;
