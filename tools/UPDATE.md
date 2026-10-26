@@ -54,7 +54,23 @@ The script installs to `D:\Tools\SmartLauncher_Next_Lite` and copies itself ther
 
 # Custom install location
 .\update.ps1 -InstallDir "D:\Tools\SmartLauncher_Next_Lite" -Show
+
+# Restore the previous exe (SmartLauncherNext.exe.bak)
+.\update.ps1 -Rollback
 ```
+
+## Behaviour details
+
+- Only the instance whose path equals `<InstallDir>\SmartLauncherNext.exe` is stopped;
+  other builds or copies are left alone.
+- Every run appends to `<InstallDir>\update.log` (rotated at 256 KB), so a silent
+  failure from Quicker can still be diagnosed afterwards.
+- `version.txt` is cross-checked against the exe's product version; when they differ
+  the exe wins and the file is repaired, with a warning in the log.
+- Two concurrent runs are guarded by a named mutex (the second one exits with code 3).
+- After copying, the installed exe version is verified again; on mismatch the
+  `.bak` file is restored automatically.
+- The updater never touches `launcher.json`, `launcher.json.bak` or `Cache`.
 
 ## What it preserves
 
@@ -74,8 +90,13 @@ A backup of the previous exe is written as `SmartLauncherNext.exe.bak`.
 
 ## Exit codes
 
-- `0`: up to date, check completed, or update succeeded
-- `1`: download, hash, extraction, or deployment failed
+- `0`: up to date, check completed, rollback done, or update succeeded
+- `1`: unexpected error
+- `2`: update source unreachable / `latest.json` invalid
+- `3`: another update is already running
+- `4`: download, size, SHA256, extraction or version check failed
+- `5`: post-install verification failed (previous exe restored)
+- `6`: `-Rollback` requested but no `.bak` exists
 
 ## Security
 

@@ -70,6 +70,12 @@ powershell -ExecutionPolicy Bypass -File tests\smoke.ps1
 
 覆盖：面板显示、键盘钩子、窗口行数/可见行数/高度公式、滚轮滚到底、重新打开回到顶部、`Esc` 关闭、设置窗口开关、`debug.log` 无异常。默认会临时开 16 个控制台窗口保证列表可滚动，可用 `-SpawnWindows 0` 跳过；测试产物在 `.smoke\`（已加入 .gitignore）。
 
+更新器有独立的端到端测试，用本地 `file://` 假源跑「下载 → 校验 → 替换 → 保留配置 → 幂等 → 回滚」：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests\update-smoke.ps1
+```
+
 - `tests\stability-test.ps1`：20 轮采样，需要先准备测试目录；脚本会把结果写入 CSV。
 - `tests\stability-report.md`：v1.2 的 20 轮结果、汇总和图表；原始数据在 `tests\stability-results.csv`。
 
@@ -92,6 +98,17 @@ powershell -ExecutionPolicy Bypass -File package.ps1
 一条命令完成：构建 → 生成 git bundle → 组装 `deploy\` → 打源码备份 → 汇总为 `SmartLauncherNext-migration-<version>.zip`，最后打印 exe 与 zip 的 SHA256。
 
 常用参数：`-Version 1.3.4`（默认读 `src\VersionInfo.cs`）、`-OutputDir`、`-DeploySource`（取 `launcher.json` / `Cache` 的目录）、`-SkipBuild`、`-KeepStaging`。
+
+## 发布
+
+```powershell
+$env:GITHUB_TOKEN = '<token>'
+powershell -ExecutionPolicy Bypass -File tools\release.ps1 -Version 1.3.6 -Notes "变更 1","变更 2" -Push
+```
+
+依次执行：改版本号 → 写 CHANGELOG → 构建 → 跑 `smoke` 和 `update-smoke` → 打包 → `publish -DryRun` → 发布（无 token 时只警告并跳过）→ 部署到 `D:\Tools\SmartLauncher_Next_Lite` → `update.ps1 -CheckOnly` 复核 → 提交并推送。
+
+不想发布或不想部署时加 `-SkipPublish` / `-SkipDeploy`，只想本地验证时去掉 `-Push`。
 
 ## 常见问题
 

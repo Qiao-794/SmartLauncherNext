@@ -140,3 +140,4 @@ if ($Push) {
 
 Write-Host ''
 Write-Host ("release " + $Version + " done") -ForegroundColor Green
+exit 0
