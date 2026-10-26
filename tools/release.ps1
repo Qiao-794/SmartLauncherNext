@@ -132,6 +132,11 @@ if ($Push) {
     Assert-Exit 'git add'
     & git -C $repo -c user.name='SmartLauncher' -c user.email='smartlauncher@local' commit -m ("release: v" + $Version)
     Assert-Exit 'git commit'
+    # 发布动作会在远端产生 latest.json 提交，先 rebase 再推，避免 non-fast-forward
+    & git -C $repo fetch origin
+    Assert-Exit 'git fetch'
+    & git -C $repo pull --rebase origin main
+    Assert-Exit 'git rebase'
     & git -C $repo push origin main
     Assert-Exit 'git push'
 } else {
