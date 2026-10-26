@@ -74,6 +74,28 @@ public class SmokeWin {
     mouse_event(0x0800, 0, 0, delta, UIntPtr.Zero);
   }
 
+  public static void RightClick() {
+    mouse_event(0x0008, 0, 0, 0, UIntPtr.Zero);
+    System.Threading.Thread.Sleep(50);
+    mouse_event(0x0010, 0, 0, 0, UIntPtr.Zero);
+  }
+
+  public static void LeftClick() {
+    mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+    System.Threading.Thread.Sleep(50);
+    mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+  }
+
+  public static int CountVisible(uint pid) {
+    int count = 0;
+    EnumWindows(delegate(IntPtr h, IntPtr l) {
+      uint p; GetWindowThreadProcessId(h, out p);
+      if (p == pid && IsWindowVisible(h)) count++;
+      return true;
+    }, IntPtr.Zero);
+    return count;
+  }
+
   public static RECT GetRect(IntPtr h) {
     RECT r;
     GetWindowRect(h, out r);
@@ -130,6 +152,24 @@ function Wait-Window([string]$title, [uint32]$processId, [int]$timeoutMs) {
 function Read-Log {
     if (-not (Test-Path $log)) { return '' }
     return [System.IO.File]::ReadAllText($log, [System.Text.Encoding]::UTF8)
+}
+
+# 把光标放到面板的第 2 行上；GetWindowRect 与 SetCursorPos 的 DPI 坐标系可能不同，两种都试
+function Set-CursorOnRow([IntPtr]$panel) {
+    if ($panel -eq [IntPtr]::Zero) { return $false }
+    $r = [SmokeWin]::GetRect($panel)
+    $scale = 1.0
+    $dpi = [SmokeWin]::GetDpiForWindow($panel)
+    if ($dpi -gt 0) { $scale = $dpi / 96.0 }
+
+    $midX = ($r.L + $r.R) / 2
+    $rowY = $r.T + 60
+    foreach ($pt in @(@([int]($midX * $scale), [int]($rowY * $scale)), @([int]$midX, [int]$rowY))) {
+        [SmokeWin]::SetCursorPos($pt[0], $pt[1]) | Out-Null
+        Start-Sleep -Milliseconds 150
+        if ([SmokeWin]::CursorWindow() -eq $panel) { return $true }
+    }
+    return $false
 }
 
 function Cleanup {
@@ -308,6 +348,29 @@ try {
                 Start-Sleep -Milliseconds 100
             }
             Assert $gone 'Esc hides the panel'
+        }
+
+        Write-Host '== context menu ==' -ForegroundColor Cyan
+        & $testExe --show --light $instance | Out-Null
+        Start-Sleep -Milliseconds 1000
+        $menuPanel = Wait-Window $panelTitle ([uint32]$script:panelProc.Id) 5000
+        $rowPlaced = Set-CursorOnRow $menuPanel
+        Assert $rowPlaced 'cursor placed on a window row'
+        if ($rowPlaced) {
+            $panelPid = [uint32]$script:panelProc.Id
+            $before = [SmokeWin]::CountVisible($panelPid)
+            [SmokeWin]::RightClick()
+            Start-Sleep -Milliseconds 700
+            $opened = [SmokeWin]::CountVisible($panelPid)
+            Assert ($opened -gt $before) ("context menu opened (" + $before + " -> " + $opened + " windows)")
+
+            # 点远处关闭菜单；菜单是独立窗口，这里只验证它能消失，不触发任何菜单项
+            [SmokeWin]::SetCursorPos(4, 4) | Out-Null
+            Start-Sleep -Milliseconds 200
+            [SmokeWin]::LeftClick()
+            Start-Sleep -Milliseconds 700
+            $closed = [SmokeWin]::CountVisible($panelPid)
+            Assert ($closed -le $before) ("context menu closed (" + $closed + " windows)")
         }
     }
 
